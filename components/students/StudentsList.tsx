@@ -1,5 +1,7 @@
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { FlatList } from "react-native";
 import StudentCard from "./StudentCard";
+import EmptyState from "../common/EmptyState";
+import LoadingState from "../common/LoadingState";
 
 interface Props {
     students: any[];
@@ -16,12 +18,7 @@ interface Props {
 }
 export default function StudentsList({ students, loading, onStudentPress, onEndReached, ListFooterComponent }: Props) {
     if (loading) {
-        return (
-            <View className="flex-1 items-center justify-center">
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text className="mt-3 text-sm text-slate-400">Loading students...</Text>
-            </View>
-        );
+        return <LoadingState title="Loading Students" subtitle="Fetching student records…" fullScreen={false} />;
     }
 
     return (
@@ -38,11 +35,13 @@ export default function StudentsList({ students, loading, onStudentPress, onEndR
                 ListFooterComponent
             }
             ListEmptyComponent={() => (
-                <View className="mt-20 items-center">
-                    <Text className="text-5xl">🎓</Text>
-                    <Text className="mt-4 text-lg font-semibold text-slate-400">No students found</Text>
-                    <Text className="mt-1 text-sm text-slate-600">Add a student to get started</Text>
-                </View>
+                <EmptyState
+                    title="No Students Found"
+                    subtitle="Add a student to get started."
+                    icon="school-outline"
+                    iconColor="#6366F1"
+                    iconBgColor="#EEF2FF"
+                />
             )}
             renderItem={({ item }) => (
                 <StudentCard

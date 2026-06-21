@@ -2,14 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
     FlatList,
     Pressable,
-    SafeAreaView,
     Text,
     View,
 } from "react-native";
 import AppSelect from "../../components/common/AppSelect";
+import EmptyState from "../../components/common/EmptyState";
+import ErrorState from "../../components/common/ErrorState";
+import LoadingState from "../../components/common/LoadingState";
 import ScreenWrapper from "../../components/common/ScreenWrapper";
 import { getClasses } from "../../services/class.service";
 import { downloadReportPdf } from "../../services/report-pdf.service";
@@ -48,6 +49,7 @@ function SummaryCard({
 export default function ReportsScreen() {
     const now = new Date();
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
     const [summary, setSummary] = useState<any>(null);
     const [reportRows, setReportRows] = useState<any[]>([]);
     const [selectedClass, setSelectedClass] = useState("ALL");
@@ -64,8 +66,9 @@ export default function ReportsScreen() {
     const fetchReports = async () => {
         try {
             setLoading(true);
+            setError(false);
             const { data, error } = await getReportData({ selectedClass });
-            if (error || !data) { console.log(error); return; }
+            if (error || !data) { console.log(error); setError(true); return; }
 
             const summaryData = generateReportSummary({
                 students: data.students,
@@ -84,8 +87,9 @@ export default function ReportsScreen() {
                 selectedYear,
             });
             setReportRows(detailedRows);
-        } catch (error) {
-            console.log(error);
+        } catch (err) {
+            console.log(err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -99,11 +103,16 @@ export default function ReportsScreen() {
     );
 
     if (loading) {
+        return <LoadingState title="Generating Report" subtitle="Crunching the numbers…" />;
+    }
+
+    if (error) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
-                <ActivityIndicator size="large" color="#2563eb" />
-                <Text className="mt-3 text-sm text-gray-400">Generating report…</Text>
-            </SafeAreaView>
+            <ErrorState
+                title="Report Unavailable"
+                subtitle="Could not generate the report. Please try again."
+                onRetry={fetchReports}
+            />
         );
     }
 
@@ -300,12 +309,13 @@ export default function ReportsScreen() {
                     </View>
                 )}
                 ListEmptyComponent={
-                    <View className="mt-20 items-center py-10">
-                        <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-                            <Ionicons name="document-text-outline" size={32} color="#9CA3AF" />
-                        </View>
-                        <Text className="mt-2 text-gray-400">No report data found</Text>
-                    </View>
+                    <EmptyState
+                        title="No Report Data"
+                        subtitle="No student records found for the selected filters."
+                        icon="document-text-outline"
+                        iconColor="#9CA3AF"
+                        iconBgColor="#F3F4F6"
+                    />
                 }
             />
         </ScreenWrapper>

@@ -3,13 +3,14 @@ import { getClasses } from "@/services/class.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     FlatList,
-    SafeAreaView,
     Text,
     View,
 } from "react-native";
 import AppSelect from "../../../components/common/AppSelect";
+import EmptyState from "../../../components/common/EmptyState";
+import ErrorState from "../../../components/common/ErrorState";
+import LoadingState from "../../../components/common/LoadingState";
 import { getCurrentMonthDefaulters } from "../../../services/defaulters.service";
 
 export default function DefaultersScreen() {
@@ -17,6 +18,7 @@ export default function DefaultersScreen() {
     const [selectedClass, setSelectedClass] = useState("ALL");
     const [classes, setClasses] = useState<string[]>(["ALL"]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     const fetchClasses = async () => {
         const { data, error } = await getClasses();
@@ -27,11 +29,13 @@ export default function DefaultersScreen() {
     const fetchData = async () => {
         try {
             setLoading(true);
+            setError(false);
             const { data, error } = await getCurrentMonthDefaulters({ selectedClass });
-            if (error) { console.log(error); return; }
+            if (error) { console.log(error); setError(true); return; }
             setStudents(data);
-        } catch (error) {
-            console.log(error);
+        } catch (err) {
+            console.log(err);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -41,11 +45,16 @@ export default function DefaultersScreen() {
     useEffect(() => { fetchData(); }, [selectedClass]);
 
     if (loading) {
+        return <LoadingState title="Loading Defaulters" subtitle="Fetching current month pending students…" />;
+    }
+
+    if (error) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
-                <ActivityIndicator size="large" color="#2563eb" />
-                <Text className="mt-3 text-sm text-gray-400">Loading defaulters…</Text>
-            </SafeAreaView>
+            <ErrorState
+                title="Failed to Load"
+                subtitle="Could not fetch defaulters. Please try again."
+                onRetry={fetchData}
+            />
         );
     }
 
@@ -88,15 +97,13 @@ export default function DefaultersScreen() {
                     </>
                 }
                 ListEmptyComponent={
-                    <View className="mt-20 items-center">
-                        <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
-                            <Ionicons name="checkmark-circle" size={48} color="#059669" />
-                        </View>
-                        <Text className="text-2xl font-black text-gray-900">No Defaulters</Text>
-                        <Text className="mt-3 text-center text-base leading-6 text-gray-500">
-                            All students cleared their current month dues
-                        </Text>
-                    </View>
+                    <EmptyState
+                        title="No Defaulters"
+                        subtitle="All students have cleared their current month dues."
+                        icon="checkmark-circle-outline"
+                        iconColor="#059669"
+                        iconBgColor="#D1FAE5"
+                    />
                 }
                 renderItem={({ item }) => (
                     <View

@@ -1,117 +1,175 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import {
-    Alert,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View
-} from "react-native";
-import ScreenWrapper from "../../../components/common/ScreenWrapper";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AppButton from "../../../components/common/AppButton";
+import AppInput from "../../../components/common/AppInput";
+import PageHeader from "../../../components/common/PageHeader";
+import { useToast } from "../../../components/common/ToastContext";
+import { Colors, Shadows } from "../../../constants/colors";
 import { createTeacher } from "../../../services/teacher.service";
 
-interface FieldProps {
-    label: string;
-    value: string;
-    onChangeText: (t: string) => void;
-    placeholder?: string;
-    keyboardType?: any;
-    secureTextEntry?: boolean;
-    autoCapitalize?: any;
-    emoji?: string;
-    required?: boolean;
-}
-
-function Field({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, autoCapitalize, emoji, required }: FieldProps) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <View className="mb-4">
-            <Text className="mb-2 text-sm font-semibold text-slate-400">
-                {emoji} {label}{required && <Text className="text-red-400"> *</Text>}
+        <View
+            style={[
+                {
+                    borderRadius: 16,
+                    backgroundColor: Colors.card,
+                    padding: 20,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorderLight,
+                },
+                Shadows.card,
+            ]}
+        >
+            <Text
+                style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
+                    color: Colors.textMuted,
+                    marginBottom: 16,
+                }}
+            >
+                {title}
             </Text>
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#64748b"
-                keyboardType={keyboardType}
-                secureTextEntry={secureTextEntry}
-                autoCapitalize={autoCapitalize ?? "words"}
-                className="rounded-xl border border-slate-600 bg-slate-700 px-4 py-4 text-base text-white"
-            />
+            {children}
         </View>
     );
 }
 
 export default function CreateTeacherScreen() {
+    const toast = useToast();
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [assignedClass, setAssignedClass] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleCreate = async () => {
         if (!name || !email || !password) {
-            Alert.alert("Missing fields", "Name, email and password are required.");
+            toast.warning("Missing Fields", "Name, email and password are required.");
             return;
         }
         try {
             setLoading(true);
             const { error } = await createTeacher({ name, email, password, assigned_class: assignedClass });
-            if (error) { Alert.alert("Error", error.message); return; }
-            Alert.alert("Teacher Created ✅", "The teacher account has been set up successfully.");
+            if (error) { toast.error("Create Failed", error.message); return; }
+            toast.success("Teacher Added", "The teacher account has been set up successfully.");
             router.back();
-        } catch (error) {
-            Alert.alert("Error", "Failed to create teacher. Please try again.");
+        } catch {
+            toast.error("Network Error", "Failed to create teacher. Please try again.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <ScreenWrapper>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                <View>
-                    <Pressable onPress={() => router.back()} className="mb-4">
-                        <Text className="text-indigo-400">← Back</Text>
-                    </Pressable>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["top"]}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+            >
+                <PageHeader title="Create Teacher" subtitle="Set up a new teacher account" showBack />
 
-                    <Text className="mb-1 text-2xl font-bold text-indigo-900">Create Teacher</Text>
-                    <Text className="mb-6 text-sm text-slate-400">Set up a new teacher account</Text>
+                <SectionCard title="Teacher Information">
+                    <AppInput
+                        label="Full Name"
+                        required
+                        iconName="person-outline"
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="e.g. Mrs. Anita Sharma"
+                        autoCapitalize="words"
+                    />
+                    <AppInput
+                        label="Assigned Class"
+                        iconName="book-outline"
+                        value={assignedClass}
+                        onChangeText={setAssignedClass}
+                        placeholder="e.g. 10-A"
+                        autoCapitalize="characters"
+                    />
+                </SectionCard>
 
-                    {/* Personal Info */}
-                    <View className="mb-4 rounded-2xl bg-slate-800 p-5">
-                        <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Teacher Information</Text>
-                        <Field label="Full Name" value={name} onChangeText={setName} placeholder="e.g. Mrs. Anita Sharma" required emoji="👩‍🏫" />
-                        <Field label="Assigned Class" value={assignedClass} onChangeText={setAssignedClass} placeholder="e.g. 10-A" emoji="📚" />
-                    </View>
-
-                    {/* Credentials */}
-                    <View className="mb-6 rounded-2xl bg-slate-800 p-5">
-                        <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Login Credentials</Text>
-                        <Field label="Email" value={email} onChangeText={setEmail} placeholder="teacher@school.com" keyboardType="email-address" required autoCapitalize="none" emoji="✉️" />
-                        <Field label="Password" value={password} onChangeText={setPassword} placeholder="Min. 6 characters" secureTextEntry required autoCapitalize="none" emoji="🔒" />
-                    </View>
-
-                    {/* Info note */}
-                    <View className="mb-6 flex-row rounded-xl bg-indigo-950 border border-indigo-800 p-4">
-                        <Text className="mr-2">ℹ️</Text>
-                        <Text className="flex-1 text-xs text-indigo-300">
-                            The teacher will be able to log in with these credentials and manage students in their assigned class.
+                <SectionCard title="Login Credentials">
+                    <AppInput
+                        label="Email"
+                        required
+                        iconName="mail-outline"
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder="teacher@school.com"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoComplete="email"
+                    />
+                    {/* Password with show/hide toggle */}
+                    <View style={{ marginBottom: 16 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: Colors.textPrimary, marginBottom: 6, marginLeft: 2 }}>
+                            Password <Text style={{ color: Colors.danger }}>*</Text>
                         </Text>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                borderRadius: 12,
+                                borderWidth: 1.5,
+                                borderColor: Colors.inputBorder,
+                                backgroundColor: Colors.inputBg,
+                                paddingHorizontal: 14,
+                                minHeight: 50,
+                            }}
+                        >
+                            <Ionicons name="lock-closed-outline" size={18} color={Colors.iconDefault} style={{ marginRight: 10 }} />
+                            <AppInput
+                                style={{ flex: 1, marginBottom: 0 }}
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Min. 6 characters"
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                            />
+                            <Pressable onPress={() => setShowPassword(!showPassword)} accessibilityLabel="Toggle password visibility">
+                                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={Colors.iconDefault} />
+                            </Pressable>
+                        </View>
                     </View>
+                </SectionCard>
 
-                    <Pressable
-                        onPress={handleCreate}
-                        disabled={loading}
-                        className={`items-center rounded-xl py-4 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
-                    >
-                        <Text className="font-bold text-white">
-                            {loading ? "Creating..." : "✓ Create Teacher"}
-                        </Text>
-                    </Pressable>
+                {/* Info note */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        borderRadius: 12,
+                        backgroundColor: Colors.primaryLight,
+                        borderWidth: 1,
+                        borderColor: Colors.primaryBorder,
+                        padding: 14,
+                        marginBottom: 24,
+                    }}
+                >
+                    <Ionicons name="information-circle-outline" size={18} color={Colors.primary} style={{ marginRight: 10, marginTop: 1 }} />
+                    <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
+                        The teacher will log in with these credentials and manage students in their assigned class.
+                    </Text>
                 </View>
+
+                <AppButton
+                    label="Create Teacher"
+                    onPress={handleCreate}
+                    loading={loading}
+                    disabled={loading}
+                    fullWidth
+                    iconLeft="person-add-outline"
+                />
             </ScrollView>
-        </ScreenWrapper>
+        </SafeAreaView>
     );
 }

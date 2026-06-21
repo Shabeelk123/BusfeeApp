@@ -1,47 +1,50 @@
+import { Ionicons } from "@expo/vector-icons";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useToast } from "../../../components/common/ToastContext";
+import AppButton from "../../../components/common/AppButton";
+import AppInput from "../../../components/common/AppInput";
+import PageHeader from "../../../components/common/PageHeader";
+import { Colors, Shadows } from "../../../constants/colors";
 import { getStudentById, updateStudent } from "../../../services/student.service";
 
-interface FieldProps {
-    label: string;
-    value: string;
-    onChangeText: (t: string) => void;
-    placeholder?: string;
-    keyboardType?: any;
-    emoji?: string;
-    required?: boolean;
-}
-
-function Field({ label, value, onChangeText, placeholder, keyboardType, emoji, required }: FieldProps) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <View className="mb-4">
-            <Text className="mb-2 text-sm font-semibold text-slate-400">
-                {emoji} {label}{required && <Text className="text-red-400"> *</Text>}
+        <View
+            style={[
+                {
+                    borderRadius: 16,
+                    backgroundColor: Colors.card,
+                    padding: 20,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorderLight,
+                },
+                Shadows.card,
+            ]}
+        >
+            <Text
+                style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
+                    color: Colors.textMuted,
+                    marginBottom: 16,
+                }}
+            >
+                {title}
             </Text>
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#64748b"
-                keyboardType={keyboardType}
-                className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-4 text-base text-white"
-            />
+            {children}
         </View>
     );
 }
 
 export default function EditStudentScreen() {
+    const toast = useToast();
     const { id } = useLocalSearchParams();
     const [student, setStudent] = useState<any>(null);
     const [fullName, setFullName] = useState("");
@@ -50,19 +53,22 @@ export default function EditStudentScreen() {
     const [className, setClassName] = useState("");
     const [busRoute, setBusRoute] = useState("");
     const [monthlyFee, setMonthlyFee] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [pageLoading, setPageLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const fetchStudent = async () => {
+        setPageLoading(true);
         const { data } = await getStudentById(id as string);
         if (data) {
             setStudent(data);
-            setFullName(data.full_name);
-            setParentName(data.parent_name);
-            setPhone(data.phone);
-            setClassName(data.class_name);
-            setBusRoute(data.bus_route);
+            setFullName(data.full_name ?? "");
+            setParentName(data.parent_name ?? "");
+            setPhone(data.phone ?? "");
+            setClassName(data.class_name ?? "");
+            setBusRoute(data.bus_route ?? "");
             setMonthlyFee(String(data?.student_fee_assignments?.[0]?.monthly_fee || ""));
         }
+        setPageLoading(false);
     };
 
     useEffect(() => { fetchStudent(); }, []);
@@ -70,82 +76,110 @@ export default function EditStudentScreen() {
     const handleUpdate = async () => {
         if (!student) return;
         try {
-            setLoading(true);
-            const feeAssignment =
-                student?.student_fee_assignments?.[0];
-
-            const { error } =
-                await updateStudent({
-                    studentId:
-                        student.id,
-
-                    feeAssignmentId:
-                        feeAssignment?.id,
-
-                    studentData: {
-                        full_name:
-                            fullName,
-
-                        parent_name:
-                            parentName,
-
-                        phone,
-
-                        class_name:
-                            className,
-
-                        bus_route:
-                            busRoute,
-                    },
-
-                    monthlyFee:
-                        Number(monthlyFee),
-                });
-            if (error) { Alert.alert("Error", error.message); return; }
-            Alert.alert("Updated! ✅", "Student record has been updated.");
+            setSaving(true);
+            const feeAssignment = student?.student_fee_assignments?.[0];
+            const { error } = await updateStudent({
+                studentId: student.id,
+                feeAssignmentId: feeAssignment?.id,
+                studentData: { full_name: fullName, parent_name: parentName, phone, class_name: className, bus_route: busRoute },
+                monthlyFee: Number(monthlyFee),
+            });
+            if (error) { toast.error("Update Failed", error.message); return; }
+            toast.success("Student Updated", "Student record has been saved.");
             router.back();
+        } catch {
+            toast.error("Network Error", "Failed to update. Please try again.");
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
+    if (pageLoading) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background, alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 13 }}>Loading student…</Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
-            <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                    <View className="px-5 pt-6">
-                        <Pressable onPress={() => router.back()} className="mb-4">
-                            <Text className="text-indigo-400">← Back</Text>
-                        </Pressable>
-                        <Text className="mb-1 text-2xl font-bold text-white">Edit Student</Text>
-                        <Text className="mb-6 text-sm text-slate-400">Update the student's details</Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["top"]}>
+            <KeyboardAwareScrollView
+                enableOnAndroid
+                extraScrollHeight={30}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+            >
+                <PageHeader title="Edit Student" subtitle="Update the student's details" showBack />
 
-                        <View className="rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Personal Information</Text>
-                            <Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Full name" emoji="👤" required />
-                            <Field label="Parent Name" value={parentName} onChangeText={setParentName} placeholder="Parent name" emoji="👨‍👩‍👧" />
-                            <Field label="Phone" value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" emoji="📞" />
-                        </View>
+                <SectionCard title="Personal Information">
+                    <AppInput
+                        label="Full Name"
+                        required
+                        iconName="person-outline"
+                        value={fullName}
+                        onChangeText={setFullName}
+                        placeholder="e.g. Rahul Kumar"
+                        autoCapitalize="words"
+                    />
+                    <AppInput
+                        label="Parent Name"
+                        iconName="people-outline"
+                        value={parentName}
+                        onChangeText={setParentName}
+                        placeholder="e.g. Raj Kumar"
+                        autoCapitalize="words"
+                    />
+                    <AppInput
+                        label="Phone Number"
+                        iconName="call-outline"
+                        value={phone}
+                        onChangeText={setPhone}
+                        placeholder="e.g. 9876543210"
+                        keyboardType="phone-pad"
+                        autoCapitalize="none"
+                    />
+                </SectionCard>
 
-                        <View className="mt-4 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">School Details</Text>
-                            <Field label="Class" value={className} onChangeText={setClassName} placeholder="e.g. 10-A" emoji="📚" />
-                            <Field label="Bus Route" value={busRoute} onChangeText={setBusRoute} placeholder="e.g. Route 3" emoji="🚌" />
-                            <Field label="Monthly Fee (₹)" value={monthlyFee} onChangeText={setMonthlyFee} placeholder="e.g. 1200" keyboardType="numeric" emoji="💰" required />
-                        </View>
+                <SectionCard title="School Details">
+                    <AppInput
+                        label="Class"
+                        iconName="book-outline"
+                        value={className}
+                        onChangeText={setClassName}
+                        placeholder="e.g. 10-A"
+                        autoCapitalize="characters"
+                    />
+                    <AppInput
+                        label="Bus Route"
+                        iconName="bus-outline"
+                        value={busRoute}
+                        onChangeText={setBusRoute}
+                        placeholder="e.g. Route 3 – Sector 7"
+                    />
+                    <AppInput
+                        label="Monthly Fee (₹)"
+                        required
+                        iconName="cash-outline"
+                        value={monthlyFee}
+                        onChangeText={setMonthlyFee}
+                        placeholder="e.g. 1200"
+                        keyboardType="numeric"
+                        autoCapitalize="none"
+                    />
+                </SectionCard>
 
-                        <Pressable
-                            onPress={handleUpdate}
-                            disabled={loading}
-                            className={`mt-6 items-center rounded-xl py-4 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
-                        >
-                            <Text className="font-bold text-white">
-                                {loading ? "Updating..." : "✓ Update Student"}
-                            </Text>
-                        </Pressable>
-                    </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                <AppButton
+                    label="Save Changes"
+                    onPress={handleUpdate}
+                    loading={saving}
+                    disabled={saving}
+                    fullWidth
+                    iconLeft="checkmark-outline"
+                />
+            </KeyboardAwareScrollView>
         </SafeAreaView>
     );
 }

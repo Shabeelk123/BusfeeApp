@@ -4,12 +4,12 @@ import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     ScrollView,
     Text,
     View
 } from "react-native";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import ScreenWrapper from "../../components/common/ScreenWrapper";
 import { logoutUser } from "../../services/auth.service";
 import { getCurrentStudent } from "../../services/student.service";
@@ -37,6 +37,7 @@ export default function StudentDashboard() {
     const [student, setStudent] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"monthly" | "history">("monthly");
+    const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
     const fetchStudent = async () => {
         try {
@@ -51,8 +52,7 @@ export default function StudentDashboard() {
     };
 
     const handleLogout = async () => {
-        const { error } = await logoutUser();
-        if (error) { Alert.alert("Error", error.message); return; }
+        await logoutUser();
         router.replace("/(auth)/login");
     };
 
@@ -81,7 +81,7 @@ export default function StudentDashboard() {
                         Please contact your school administrator to set up your account.
                     </Text>
                     <Pressable
-                        onPress={handleLogout}
+                        onPress={() => setShowLogoutDialog(true)}
                         className="mt-6 flex-row items-center rounded-2xl border border-red-200 bg-red-50 px-6 py-3"
                     >
                         <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
@@ -134,7 +134,7 @@ export default function StudentDashboard() {
                         </View>
                     </View>
                     <Pressable
-                        onPress={handleLogout}
+                        onPress={() => setShowLogoutDialog(true)}
                         style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
                         className="ml-3 flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
                     >
@@ -308,6 +308,17 @@ export default function StudentDashboard() {
                     </View>
                 )}
             </ScrollView>
+
+            <ConfirmDialog
+                visible={showLogoutDialog}
+                variant="warning"
+                title="Sign Out?"
+                subtitle="You'll be returned to the login screen."
+                confirmLabel="Sign Out"
+                cancelLabel="Stay"
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutDialog(false)}
+            />
         </ScreenWrapper>
     );
 }

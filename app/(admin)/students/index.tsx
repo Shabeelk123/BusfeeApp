@@ -16,6 +16,7 @@ import {
 
 
 import AppSelect from "../../../components/common/AppSelect";
+import ErrorState from "../../../components/common/ErrorState";
 import ScreenWrapper from "../../../components/common/ScreenWrapper";
 import StudentsList from "../../../components/students/StudentsList";
 import { getClasses } from "../../../services/class.service";
@@ -35,6 +36,8 @@ export default function StudentsScreen() {
         useState("");
     const [loading, setLoading] =
         useState(true);
+    const [error, setError] =
+        useState(false);
 
     const [search, setSearch] =
         useState("");
@@ -85,6 +88,7 @@ export default function StudentsScreen() {
                     pageNumber === 0
                 ) {
                     setLoading(true);
+                    setError(false);
                 }
 
                 const {
@@ -102,7 +106,7 @@ export default function StudentsScreen() {
                     console.log(
                         error
                     );
-
+                    setError(true);
                     return;
                 }
 
@@ -129,8 +133,9 @@ export default function StudentsScreen() {
                         );
                     }
                 }
-            } catch (error) {
-                console.log(error);
+            } catch (err) {
+                console.log(err);
+                setError(true);
             } finally {
                 setLoading(false);
             }
@@ -171,6 +176,16 @@ export default function StudentsScreen() {
                 nextPage
             );
         };
+
+    if (error) {
+        return (
+            <ErrorState
+                title="Failed to Load Students"
+                subtitle="Could not fetch student records. Please try again."
+                onRetry={() => fetchStudents(0)}
+            />
+        );
+    }
 
     return (
         <ScreenWrapper>

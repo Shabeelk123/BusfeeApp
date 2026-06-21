@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     ScrollView,
     Text,
@@ -15,6 +14,7 @@ import { router as expoRouter } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { useToast } from "@/components/common/ToastContext";
 import { createStudent } from "../../../services/student.service";
 
 interface FieldProps {
@@ -69,6 +69,7 @@ function Field({
 }
 
 export default function CreateStudentScreen() {
+    const toast = useToast();
     const [fullName, setFullName] =
         useState("");
 
@@ -110,7 +111,7 @@ export default function CreateStudentScreen() {
                 !email ||
                 !password
             ) {
-                Alert.alert(
+                toast.warning(
                     "Missing Fields",
                     "Please fill in all required fields."
                 );
@@ -151,23 +152,23 @@ export default function CreateStudentScreen() {
                     });
 
                 if (error) {
-                    Alert.alert(
-                        "Error",
+                    toast.error(
+                        "Create Failed",
                         error.message
                     );
 
                     return;
                 }
 
-                Alert.alert(
-                    "Success",
-                    "Student created successfully."
+                toast.success(
+                    "Student Added",
+                    "Student profile created successfully."
                 );
 
                 expoRouter.back();
             } catch (error) {
-                Alert.alert(
-                    "Error",
+                toast.error(
+                    "Network Error",
                     "Failed to create student."
                 );
             } finally {

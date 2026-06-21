@@ -17,7 +17,38 @@ export const useSessionRestore = () => {
     const dispatch = useAppDispatch();
 
     useEffect(() => {
+        // 1. Restore any persisted session from AsyncStorage on app start
         restoreSession();
+
+        // 2. Subscribe to live auth events (expiry, refresh, remote sign-out)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                if (event === "SIGNED_OUT" || !session) {
+                    // Token expired or user signed out from another device
+                    dispatch(clearUser());
+                    router.replace("/(auth)/login");
+                    return;
+                }
+
+                if (event === "TOKEN_REFRESHED" && session) {
+                    // Token was silently refreshed — re-hydrate Redux user profile
+                    // in case it was cleared (e.g. app backgrounded for a long time)
+                    const { data: profile, error } = await supabase
+                        .from("users")
+                        .select("*")
+                        .eq("auth_id", session.user.id)
+                        .single();
+
+                    if (!error && profile) {
+                        dispatch(setUser({ user: profile, role: profile.role }));
+                    }
+                }
+            }
+        );
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     const restoreSession = async () => {

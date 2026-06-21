@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useState } from "react";
 import {
     Pressable,
     Text,
     View
 } from "react-native";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import ScreenWrapper from "../../components/common/ScreenWrapper";
 import { useAppDispatch, useAppSelector } from "../../hooks/redux";
 import { supabase } from "../../lib/supabase";
@@ -53,6 +55,7 @@ function NavCard({
 export default function TeacherDashboard() {
     const dispatch = useAppDispatch();
     const user = useAppSelector((state) => state.auth.user);
+    const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -73,7 +76,7 @@ export default function TeacherDashboard() {
                     </Text>
                 </View>
                 <Pressable
-                    onPress={handleLogout}
+                    onPress={() => setShowLogoutDialog(true)}
                     style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
                     className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
                 >
@@ -130,6 +133,16 @@ export default function TeacherDashboard() {
                     Monitor student fee payments, track defaulters, and manage your class roster from here.
                 </Text>
             </View>
+            <ConfirmDialog
+                visible={showLogoutDialog}
+                variant="warning"
+                title="Sign Out?"
+                subtitle="You'll be returned to the login screen. Any unsaved changes will be lost."
+                confirmLabel="Sign Out"
+                cancelLabel="Stay"
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutDialog(false)}
+            />
         </ScreenWrapper>
     );
 }

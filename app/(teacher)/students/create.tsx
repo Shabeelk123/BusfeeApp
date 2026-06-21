@@ -1,10 +1,10 @@
 import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { useToast } from "@/components/common/ToastContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     Text,
     TextInput,
@@ -51,6 +51,7 @@ function Field({ label, value, onChangeText, placeholder, keyboardType, secureTe
 }
 
 export default function TeacherCreateStudentScreen() {
+    const toast = useToast();
     const [fullName, setFullName] = useState("");
     const [admissionNo, setAdmissionNo] = useState("");
     const [parentName, setParentName] = useState("");
@@ -63,14 +64,14 @@ export default function TeacherCreateStudentScreen() {
 
     const handleCreate = async () => {
         if (!fullName || !admissionNo || !monthlyFee || !email || !password) {
-            Alert.alert("Missing Fields", "Please fill in all required fields.");
+            toast.warning("Missing Fields", "Please fill in all required fields.");
             return;
         }
         try {
             setLoading(true);
             const profile = await getCurrentUserProfile();
             if (!profile) {
-                Alert.alert("Error", "Teacher profile not found. Please log in again.");
+                toast.error("Session Error", "Teacher profile not found. Please log in again.");
                 return;
             }
             const { error } = await createStudent({
@@ -84,11 +85,14 @@ export default function TeacherCreateStudentScreen() {
                 email,
                 password,
             });
-            if (error) { Alert.alert("Error", error.message); return; }
-            Alert.alert("Success", "Student registered successfully.");
+            if (error) {
+                toast.error("Create Failed", error.message);
+                return;
+            }
+            toast.success("Student Added", "Student registered successfully.");
             router.back();
         } catch (error) {
-            Alert.alert("Error", "Failed to create student. Please try again.");
+            toast.error("Network Error", "Failed to create student. Please try again.");
         } finally {
             setLoading(false);
         }

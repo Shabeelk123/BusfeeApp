@@ -1,7 +1,5 @@
 import {
-    ActivityIndicator,
     Pressable,
-    SafeAreaView,
     ScrollView,
     Text,
     View,
@@ -10,6 +8,9 @@ import {
 import { useEffect, useState } from "react";
 
 import ScreenWrapper from "@/components/common/ScreenWrapper";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
+import ErrorState from "@/components/common/ErrorState";
+import LoadingState from "@/components/common/LoadingState";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import StatCard from "../../components/dashboard/StatCard";
@@ -63,13 +64,17 @@ export default function DashboardScreen() {
     const user = useAppSelector((state) => state.auth.user);
     const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+    const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
     const fetchStats = async () => {
         try {
+            setError(false);
             const data = await getDashboardStats();
             setStats(data);
         } catch (error) {
             console.log(error);
+            setError(true);
         } finally {
             setLoading(false);
         }
@@ -84,10 +89,16 @@ export default function DashboardScreen() {
     useEffect(() => { fetchStats(); }, []);
 
     if (loading) {
+        return <LoadingState title="Loading Dashboard" subtitle="Fetching your stats…" />;
+    }
+
+    if (error) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
-                <ActivityIndicator />
-            </SafeAreaView>
+            <ErrorState
+                title="Dashboard Unavailable"
+                subtitle="Could not load dashboard stats. Please try again."
+                onRetry={fetchStats}
+            />
         );
     }
 
@@ -107,7 +118,7 @@ export default function DashboardScreen() {
                         </Text>
                     </View>
                     <Pressable
-                        onPress={handleLogout}
+                        onPress={() => setShowLogoutDialog(true)}
                         style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
                         className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
                     >
@@ -265,6 +276,17 @@ export default function DashboardScreen() {
                     </View>
                 </View>
             </ScrollView>
+
+            <ConfirmDialog
+                visible={showLogoutDialog}
+                variant="warning"
+                title="Sign Out?"
+                subtitle="You'll be returned to the login screen. Any unsaved changes will be lost."
+                confirmLabel="Sign Out"
+                cancelLabel="Stay"
+                onConfirm={handleLogout}
+                onCancel={() => setShowLogoutDialog(false)}
+            />
         </ScreenWrapper>
     );
 }

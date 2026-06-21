@@ -1,12 +1,13 @@
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     SafeAreaView,
     ScrollView,
     Text,
     View,
 } from "react-native";
+import ConfirmDialog from "../common/ConfirmDialog";
+import { useToast } from "../common/ToastContext";
 
 import { useFocusEffect } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -32,10 +33,12 @@ const MONTH_NAMES = [
 ];
 
 export default function StudentDetailsScreen({ role, baseRoute }: Props) {
+    const toast = useToast();
     const { id } = useLocalSearchParams();
     const [student, setStudent] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"info" | "monthly" | "transactions">("info");
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const fetchStudent = async () => {
         try {
@@ -52,18 +55,12 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     useFocusEffect(useCallback(() => { fetchStudent(); }, []));
 
     const handleDelete = async () => {
-        Alert.alert("Delete Student", "This action cannot be undone. Are you sure?", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    const { error } = await deleteStudent(student.id);
-                    if (error) { Alert.alert("Error", error.message); return; }
-                    router.back();
-                },
-            },
-        ]);
+        const { error } = await deleteStudent(student.id);
+        if (error) {
+            toast.error("Delete Failed", error.message);
+            return;
+        }
+        router.back();
     };
 
     if (loading) {
@@ -182,7 +179,7 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                                 <Text className="font-semibold text-blue-400">✏️ Edit</Text>
                             </Pressable>
                             <Pressable
-                                onPress={handleDelete}
+                                onPress={() => setShowDeleteDialog(true)}
                                 className="flex-1 items-center rounded-xl bg-red-950 py-3 active:opacity-80"
                             >
                                 <Text className="font-semibold text-red-400">🗑 Delete</Text>
@@ -301,6 +298,16 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                     )}
                 </View>
             </ScrollView>
+
+            <ConfirmDialog
+                visible={showDeleteDialog}
+                variant="danger"
+                title="Delete Student"
+                subtitle="This will permanently remove the student and all associated fee records. This action cannot be undone."
+                confirmLabel="Delete"
+                onConfirm={handleDelete}
+                onCancel={() => setShowDeleteDialog(false)}
+            />
         </SafeAreaView>
     );
 }
