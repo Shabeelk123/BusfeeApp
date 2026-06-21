@@ -3,10 +3,13 @@ import {
 } from "react";
 
 import {
-    SafeAreaView,
     StatusBar,
     View,
 } from "react-native";
+
+import {
+    SafeAreaView,
+} from "react-native-safe-area-context";
 
 interface Props {
     children: ReactNode;
@@ -20,6 +23,7 @@ export default function ScreenWrapper({
 }: Props) {
     return (
         <SafeAreaView
+            edges={["top"]}
             style={{
                 flex: 1,
                 backgroundColor,
@@ -32,12 +36,7 @@ export default function ScreenWrapper({
                 }
             />
 
-            <View
-                className="flex-1"
-                style={{
-                    paddingTop: 12,
-                }}
-            >
+            <View className="flex-1 px-5 pt-4">
                 {children}
             </View>
         </SafeAreaView>

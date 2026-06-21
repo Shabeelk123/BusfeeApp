@@ -1,4 +1,4 @@
-import { logoutUser } from "@/services/auth.service";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
@@ -6,11 +6,12 @@ import {
     ActivityIndicator,
     Alert,
     Pressable,
-    SafeAreaView,
     ScrollView,
     Text,
-    View,
+    View
 } from "react-native";
+import ScreenWrapper from "../../components/common/ScreenWrapper";
+import { logoutUser } from "../../services/auth.service";
 import { getCurrentStudent } from "../../services/student.service";
 import { calculateFeeBalance } from "../../utils/fee";
 import { generateMonthlyFeeStatus } from "../../utils/monthlyFeeStatus";
@@ -20,11 +21,14 @@ const MONTH_NAMES = [
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function StatCard({ label, value, valueColor }: { label: string; value: string; valueColor: string }) {
+function MiniStat({ label, value, valueColor }: { label: string; value: string; valueColor: string }) {
     return (
-        <View className="flex-1 rounded-2xl bg-slate-800 p-4">
-            <Text className="mb-1 text-xs text-slate-500">{label}</Text>
-            <Text className={`text-lg font-bold ${valueColor}`}>{value}</Text>
+        <View
+            className="flex-1 rounded-2xl bg-white p-4"
+            style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }}
+        >
+            <Text className="mb-1 text-xs text-gray-400">{label}</Text>
+            <Text className={`text-base font-bold ${valueColor}`}>{value}</Text>
         </View>
     );
 }
@@ -37,8 +41,7 @@ export default function StudentDashboard() {
     const fetchStudent = async () => {
         try {
             setLoading(true);
-            const { data, error } = await getCurrentStudent();
-            if (error) { console.log(error); return; }
+            const { data } = await getCurrentStudent();
             setStudent(data);
         } catch (error) {
             console.log(error);
@@ -57,27 +60,35 @@ export default function StudentDashboard() {
 
     if (loading) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-slate-900">
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text className="mt-3 text-sm text-slate-400">Loading your account...</Text>
-            </SafeAreaView>
+            <ScreenWrapper>
+                <View className="flex-1 items-center justify-center bg-gray-50">
+                    <ActivityIndicator size="large" color="#2563eb" />
+                    <Text className="mt-3 text-sm text-gray-400">Loading your account…</Text>
+                </View>
+            </ScreenWrapper>
         );
     }
 
     if (!student) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-slate-900">
+            <ScreenWrapper>
                 <View className="items-center px-8">
-                    <Text className="text-5xl">🔒</Text>
-                    <Text className="mt-4 text-center text-lg font-bold text-white">Profile Not Found</Text>
-                    <Text className="mt-2 text-center text-sm text-slate-400">
+                    <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+                        <Ionicons name="lock-closed" size={40} color="#6B7280" />
+                    </View>
+                    <Text className="mt-4 text-center text-lg font-bold text-gray-900">Profile Not Found</Text>
+                    <Text className="mt-2 text-center text-sm text-gray-500">
                         Please contact your school administrator to set up your account.
                     </Text>
-                    <Pressable onPress={handleLogout} className="mt-6 rounded-xl bg-slate-800 px-6 py-3">
-                        <Text className="font-semibold text-red-400">Sign Out</Text>
+                    <Pressable
+                        onPress={handleLogout}
+                        className="mt-6 flex-row items-center rounded-2xl border border-red-200 bg-red-50 px-6 py-3"
+                    >
+                        <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                        <Text className="font-semibold text-red-500">Sign Out</Text>
                     </Pressable>
                 </View>
-            </SafeAreaView>
+            </ScreenWrapper>
         );
     }
 
@@ -98,101 +109,105 @@ export default function StudentDashboard() {
     const isCleared = feeSummary.dueAmount === 0;
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
+        <ScreenWrapper>
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 60 }}
             >
                 {/* ── Header ── */}
-                <View className="px-5 pt-6">
-                    <View className="flex-row items-start justify-between">
-                        <View className="flex-1">
-                            <Text className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                                Student Portal
-                            </Text>
-                            <Text className="mt-1 text-2xl font-bold text-white" numberOfLines={1}>
-                                {student.full_name}
-                            </Text>
-                            <View className="mt-2 flex-row gap-2">
-                                <View className="rounded-lg bg-slate-800 px-3 py-1">
-                                    <Text className="text-xs font-medium text-slate-300">
-                                        📚 {student.class_name || "No Class"}
-                                    </Text>
-                                </View>
-                                <View className="rounded-lg bg-slate-800 px-3 py-1">
-                                    <Text className="text-xs font-medium text-slate-300">
-                                        🚌 {student.bus_route || "No Route"}
-                                    </Text>
-                                </View>
+                <View className="mb-6 flex-row items-start justify-between">
+                    <View className="flex-1">
+                        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                            Student Portal
+                        </Text>
+                        <Text className="mt-1 text-2xl font-bold text-gray-900" numberOfLines={1}>
+                            {student.full_name}
+                        </Text>
+                        <View className="mt-2 flex-row gap-2">
+                            <View className="flex-row items-center rounded-lg border border-gray-200 bg-white px-3 py-1">
+                                <Ionicons name="book-outline" size={12} color="#6B7280" style={{ marginRight: 4 }} />
+                                <Text className="text-xs font-medium text-gray-600">{student.class_name || "No Class"}</Text>
+                            </View>
+                            <View className="flex-row items-center rounded-lg border border-gray-200 bg-white px-3 py-1">
+                                <Ionicons name="bus-outline" size={12} color="#6B7280" style={{ marginRight: 4 }} />
+                                <Text className="text-xs font-medium text-gray-600">{student.bus_route || "No Route"}</Text>
                             </View>
                         </View>
-                        <Pressable
-                            onPress={handleLogout}
-                            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-                            className="ml-3 rounded-xl bg-slate-800 px-4 py-2"
-                        >
-                            <Text className="text-sm font-semibold text-red-400">Logout</Text>
-                        </Pressable>
                     </View>
+                    <Pressable
+                        onPress={handleLogout}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                        className="ml-3 flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
+                    >
+                        <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                        <Text className="text-sm font-semibold text-red-500">Sign Out</Text>
+                    </Pressable>
                 </View>
 
                 {/* ── Fee Status Hero Banner ── */}
-                <View className="mx-5 mt-5">
-                    <View className={`overflow-hidden rounded-2xl p-5 ${isCleared ? "bg-emerald-700" : "bg-red-800"}`}>
-                        <Text className="text-xs font-bold uppercase tracking-widest text-white/60">
-                            {isCleared ? "Account Status" : "Outstanding Balance"}
-                        </Text>
-                        <Text className="mt-2 text-4xl font-bold text-white">
-                            {feeSummary.dueAmount > 0
-                                ? `₹${feeSummary.dueAmount}`
-                                : feeSummary.advanceAmount > 0
-                                    ? `+₹${feeSummary.advanceAmount}`
-                                    : "All Clear"}
-                        </Text>
-                        <Text className="mt-1 text-sm text-white/70">
-                            {feeSummary.dueAmount > 0
-                                ? "Please clear your dues as soon as possible"
-                                : feeSummary.advanceAmount > 0
-                                    ? "You have an advance balance — great work!"
-                                    : "Your fee account is fully up to date"}
-                        </Text>
-
-                        {/* Mini badges */}
-                        <View className="mt-4 flex-row gap-2">
-                            <View className="rounded-lg bg-white/10 px-3 py-1.5">
-                                <Text className="text-xs font-bold text-white">{paidCount} Paid</Text>
-                            </View>
-                            {pendingCount > 0 && (
-                                <View className="rounded-lg bg-white/10 px-3 py-1.5">
-                                    <Text className="text-xs font-bold text-white">{pendingCount} Pending</Text>
-                                </View>
-                            )}
-                            {monthlyStatus.advanceAmount > 0 && (
-                                <View className="rounded-lg bg-white/10 px-3 py-1.5">
-                                    <Text className="text-xs font-bold text-white">₹{monthlyStatus.advanceAmount} Advance</Text>
-                                </View>
-                            )}
+                <View
+                    className={`mb-5 overflow-hidden rounded-3xl p-6 ${isCleared ? "bg-emerald-600" : "bg-red-500"}`}
+                    style={{ shadowColor: isCleared ? "#059669" : "#ef4444", shadowOpacity: 0.25, shadowRadius: 16, elevation: 6 }}
+                >
+                    <Text className="text-xs font-bold uppercase tracking-widest text-white/70">
+                        {isCleared ? "Account Status" : "Outstanding Balance"}
+                    </Text>
+                    <Text className="mt-2 text-4xl font-black text-white">
+                        {feeSummary.dueAmount > 0
+                            ? `₹${feeSummary.dueAmount}`
+                            : feeSummary.advanceAmount > 0
+                                ? `+₹${feeSummary.advanceAmount}`
+                                : "All Clear"}
+                    </Text>
+                    <Text className="mt-1 text-sm text-white/80">
+                        {feeSummary.dueAmount > 0
+                            ? "Please clear your dues as soon as possible"
+                            : feeSummary.advanceAmount > 0
+                                ? "You have an advance balance — great work!"
+                                : "Your fee account is fully up to date"}
+                    </Text>
+                    <View className="mt-4 flex-row gap-2">
+                        <View className="flex-row items-center rounded-lg bg-white/20 px-3 py-1.5">
+                            <Ionicons name="checkmark-circle-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                            <Text className="text-xs font-bold text-white">{paidCount} Paid</Text>
                         </View>
+                        {pendingCount > 0 && (
+                            <View className="flex-row items-center rounded-lg bg-white/20 px-3 py-1.5">
+                                <Ionicons name="time-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                                <Text className="text-xs font-bold text-white">{pendingCount} Pending</Text>
+                            </View>
+                        )}
+                        {monthlyStatus.advanceAmount > 0 && (
+                            <View className="flex-row items-center rounded-lg bg-white/20 px-3 py-1.5">
+                                <Ionicons name="trending-up-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                                <Text className="text-xs font-bold text-white">₹{monthlyStatus.advanceAmount} Advance</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
                 {/* ── Stats Row ── */}
-                <View className="mx-5 mt-4 flex-row gap-3">
-                    <StatCard label="Monthly Fee" value={`₹${monthlyFee}`} valueColor="text-indigo-400" />
-                    <StatCard label="Total Paid" value={`₹${feeSummary.totalPaid}`} valueColor="text-emerald-400" />
-                    <StatCard label="Months" value={String(feeSummary.totalMonths)} valueColor="text-white" />
+                <View className="mb-6 flex-row gap-3">
+                    <MiniStat label="Monthly Fee" value={`₹${monthlyFee}`} valueColor="text-blue-600" />
+                    <MiniStat label="Total Paid" value={`₹${feeSummary.totalPaid}`} valueColor="text-emerald-600" />
+                    <MiniStat label="Months" value={String(feeSummary.totalMonths)} valueColor="text-gray-900" />
                 </View>
 
                 {/* ── Tabs ── */}
-                <View className="mx-5 mt-6 flex-row rounded-xl bg-slate-800 p-1">
+                <View className="mb-5 flex-row rounded-2xl border border-gray-200 bg-white p-1">
                     {(["monthly", "history"] as const).map((tab) => (
                         <Pressable
                             key={tab}
                             onPress={() => setActiveTab(tab)}
-                            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                            className={`flex-1 items-center rounded-lg py-2.5 ${activeTab === tab ? "bg-indigo-600" : ""}`}
+                            style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+                            className={`flex-1 flex-row items-center justify-center rounded-xl py-2.5 ${activeTab === tab ? "bg-blue-600" : ""}`}
                         >
-                            <Text className={`text-sm font-semibold ${activeTab === tab ? "text-white" : "text-slate-400"}`}>
+                            <Ionicons
+                                name={tab === "monthly" ? "calendar-outline" : "receipt-outline"}
+                                size={14}
+                                color={activeTab === tab ? "white" : "#9CA3AF"}
+                                style={{ marginRight: 5 }}
+                            />
+                            <Text className={`text-sm font-semibold ${activeTab === tab ? "text-white" : "text-gray-400"}`}>
                                 {tab === "monthly" ? "Monthly" : "History"}
                             </Text>
                         </Pressable>
@@ -201,11 +216,13 @@ export default function StudentDashboard() {
 
                 {/* ── Monthly Status Tab ── */}
                 {activeTab === "monthly" && (
-                    <View className="mx-5 mt-4">
+                    <View>
                         {monthlyStatus.months.length === 0 ? (
                             <View className="mt-10 items-center">
-                                <Text className="text-4xl">📅</Text>
-                                <Text className="mt-3 text-slate-400">No monthly records yet</Text>
+                                <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                                    <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
+                                </View>
+                                <Text className="mt-2 text-gray-400">No monthly records yet</Text>
                             </View>
                         ) : (
                             monthlyStatus.months.map((item, index) => {
@@ -214,23 +231,28 @@ export default function StudentDashboard() {
                                 return (
                                     <View
                                         key={index}
-                                        className={`mb-2.5 flex-row items-center rounded-xl px-4 py-3.5 ${
-                                            isPaid ? "bg-emerald-950 border border-emerald-800"
-                                            : isPartial ? "bg-orange-950 border border-orange-800"
-                                            : "bg-red-950 border border-red-900"
-                                        }`}
+                                        className={`mb-2.5 flex-row items-center rounded-2xl border px-4 py-3.5 ${isPaid
+                                            ? "border-emerald-200 bg-emerald-50"
+                                            : isPartial
+                                                ? "border-orange-200 bg-orange-50"
+                                                : "border-red-200 bg-red-50"
+                                            }`}
                                     >
+                                        <Ionicons
+                                            name={isPaid ? "checkmark-circle" : isPartial ? "time" : "alert-circle"}
+                                            size={20}
+                                            color={isPaid ? "#059669" : isPartial ? "#f97316" : "#ef4444"}
+                                            style={{ marginRight: 12 }}
+                                        />
                                         <View className="flex-1">
-                                            <Text className="font-semibold text-white">
+                                            <Text className="font-semibold text-gray-900">
                                                 {MONTH_NAMES[item.month - 1]} {item.year}
                                             </Text>
-                                            <Text className="mt-0.5 text-xs text-slate-400">
+                                            <Text className="mt-0.5 text-xs text-gray-500">
                                                 Paid ₹{item.paid} of ₹{item.expected}
                                             </Text>
                                         </View>
-                                        <View className={`rounded-full px-3 py-1 ${
-                                            isPaid ? "bg-emerald-700" : isPartial ? "bg-orange-700" : "bg-red-700"
-                                        }`}>
+                                        <View className={`rounded-full px-3 py-1 ${isPaid ? "bg-emerald-600" : isPartial ? "bg-orange-500" : "bg-red-500"}`}>
                                             <Text className="text-xs font-bold text-white">{item.status}</Text>
                                         </View>
                                     </View>
@@ -242,44 +264,50 @@ export default function StudentDashboard() {
 
                 {/* ── History Tab ── */}
                 {activeTab === "history" && (
-                    <View className="mx-5 mt-4">
+                    <View>
                         {!student?.fee_transactions?.length ? (
                             <View className="mt-10 items-center">
-                                <Text className="text-4xl">💳</Text>
-                                <Text className="mt-3 text-slate-400">No payments recorded yet</Text>
+                                <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                                    <Ionicons name="card-outline" size={32} color="#9CA3AF" />
+                                </View>
+                                <Text className="mt-2 text-gray-400">No payments recorded yet</Text>
                             </View>
                         ) : (
                             [...student.fee_transactions]
                                 .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                 .map((item: any) => (
-                                    <View key={item.id} className="mb-3 rounded-xl bg-slate-800 p-4">
+                                    <View
+                                        key={item.id}
+                                        className="mb-3 rounded-2xl border border-gray-100 bg-white p-4"
+                                        style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}
+                                    >
                                         <View className="flex-row items-center justify-between">
                                             <View className="flex-row items-center">
-                                                <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-emerald-900">
-                                                    <Text className="text-base">₹</Text>
+                                                <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                                                    <Ionicons name="cash-outline" size={20} color="#059669" />
                                                 </View>
                                                 <View>
-                                                    <Text className="text-base font-bold text-emerald-400">₹{item.amount}</Text>
-                                                    <Text className="text-xs text-slate-500">
+                                                    <Text className="text-base font-bold text-emerald-600">₹{item.amount}</Text>
+                                                    <Text className="text-xs text-gray-400">
                                                         {MONTH_NAMES[(item.payment_month || 1) - 1]} {item.payment_year}
                                                     </Text>
                                                 </View>
                                             </View>
-                                            <Text className="text-xs text-slate-600">
+                                            <Text className="text-xs text-gray-400">
                                                 {new Date(item.created_at).toLocaleDateString("en-IN")}
                                             </Text>
                                         </View>
-                                        {item.note ? (
-                                            <Text className="mt-2.5 border-t border-slate-700 pt-2.5 text-xs text-slate-500">
+                                        {item.note && (
+                                            <Text className="mt-2.5 border-t border-gray-100 pt-2.5 text-xs text-gray-400">
                                                 {item.note}
                                             </Text>
-                                        ) : null}
+                                        )}
                                     </View>
                                 ))
                         )}
                     </View>
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </ScreenWrapper>
     );
 }

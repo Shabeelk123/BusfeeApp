@@ -12,8 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.shabeel.busfeeapp",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -43,6 +43,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f74aa42e-e61e-4ac0-b5d2-dd51bd98c752"
+      }
     }
   }
 }

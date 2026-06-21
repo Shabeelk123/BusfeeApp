@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 import {
     ActivityIndicator,
     Alert,
@@ -7,12 +6,11 @@ import {
     SafeAreaView,
     Text,
     TextInput,
-    View
+    View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-
 import { router } from "expo-router";
-
 import { useAppDispatch } from "../../hooks/redux";
 import { supabase } from "../../lib/supabase";
 import { loginUser } from "../../services/auth.service";
@@ -20,126 +18,46 @@ import { setUser } from "../../store/authSlice";
 
 export default function LoginScreen() {
     const dispatch = useAppDispatch();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
-    const [email, setEmail] =
-        useState("");
+    const handleLogin = async () => {
+        if (!email || !password) {
+            Alert.alert("Missing Fields", "Please enter your email and password.");
+            return;
+        }
+        try {
+            setLoading(true);
+            const { data, error } = await loginUser(email, password);
+            if (error) { Alert.alert("Login Failed", error.message); return; }
 
-    const [password, setPassword] =
-        useState("");
+            const authUser = data.user;
+            if (!authUser) { Alert.alert("Error", "User not found"); return; }
 
-    const [loading, setLoading] =
-        useState(false);
+            const { data: profile, error: profileError } = await supabase
+                .from("users")
+                .select("*")
+                .eq("auth_id", authUser.id)
+                .single();
 
-    const [showPassword, setShowPassword] =
-        useState(false);
-
-    const handleLogin =
-        async () => {
-            if (!email || !password) {
-                Alert.alert(
-                    "Missing Fields",
-                    "Please enter your email and password."
-                );
-
+            if (profileError || !profile) {
+                Alert.alert("Profile Not Found", "Please contact administrator.");
                 return;
             }
 
-            try {
-                setLoading(true);
+            dispatch(setUser({ user: profile, role: profile.role }));
 
-                const {
-                    data,
-                    error,
-                } = await loginUser(
-                    email,
-                    password
-                );
-
-                if (error) {
-                    Alert.alert(
-                        "Login Failed",
-                        error.message
-                    );
-
-                    return;
-                }
-
-                const authUser =
-                    data.user;
-
-                if (!authUser) {
-                    Alert.alert(
-                        "Error",
-                        "User not found"
-                    );
-
-                    return;
-                }
-
-                const {
-                    data: profile,
-                    error:
-                    profileError,
-                } = await supabase
-                    .from("users")
-                    .select("*")
-                    .eq(
-                        "auth_id",
-                        authUser.id
-                    )
-                    .single();
-
-                if (
-                    profileError ||
-                    !profile
-                ) {
-                    Alert.alert(
-                        "Profile Not Found",
-                        "Please contact administrator."
-                    );
-
-                    return;
-                }
-
-                dispatch(
-                    setUser({
-                        user: profile,
-                        role: profile.role,
-                    })
-                );
-
-                // Role Redirect
-                if (
-                    profile.role ===
-                    "ADMIN"
-                ) {
-                    router.replace(
-                        "/(admin)/dashboard"
-                    );
-                } else if (
-                    profile.role ===
-                    "TEACHER"
-                ) {
-                    router.replace(
-                        "/(teacher)/dashboard"
-                    );
-                } else if (
-                    profile.role ===
-                    "STUDENT"
-                ) {
-                    router.replace(
-                        "/(student)/dashboard"
-                    );
-                }
-            } catch (error) {
-                Alert.alert(
-                    "Error",
-                    "Something went wrong."
-                );
-            } finally {
-                setLoading(false);
-            }
-        };
+            if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
+            else if (profile.role === "TEACHER") router.replace("/(teacher)/dashboard");
+            else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
+        } catch (error) {
+            Alert.alert("Error", "Something went wrong.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <SafeAreaView className="flex-1 bg-gray-50">
@@ -158,18 +76,13 @@ export default function LoginScreen() {
                 {/* Logo + Heading */}
                 <View className="mb-14 items-center">
                     <View className="mb-6 h-24 w-24 items-center justify-center rounded-[30px] bg-blue-600 shadow">
-                        <Text className="text-5xl text-white">
-                            🚌
-                        </Text>
+                        <Ionicons name="bus" size={48} color="white" />
                     </View>
-
                     <Text className="text-center text-4xl font-black tracking-tight text-gray-900">
                         Welcome Back
                     </Text>
-
                     <Text className="mt-3 text-center text-base leading-6 text-gray-500">
-                        Sign in to continue to
-                        your School ERP dashboard
+                        Sign in to continue to your School ERP dashboard
                     </Text>
                 </View>
 
@@ -180,12 +93,8 @@ export default function LoginScreen() {
                         <Text className="mb-2 ml-1 text-sm font-semibold text-gray-700">
                             Email Address
                         </Text>
-
                         <View className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4">
-                            <Text className="mr-3 text-lg text-gray-400">
-                                ✉️
-                            </Text>
-
+                            <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={{ marginRight: 10 }} />
                             <TextInput
                                 value={email}
                                 onChangeText={setEmail}
@@ -203,12 +112,8 @@ export default function LoginScreen() {
                         <Text className="mb-2 ml-1 text-sm font-semibold text-gray-700">
                             Password
                         </Text>
-
                         <View className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4">
-                            <Text className="mr-3 text-lg text-gray-400">
-                                🔒
-                            </Text>
-
+                            <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" style={{ marginRight: 10 }} />
                             <TextInput
                                 value={password}
                                 onChangeText={setPassword}
@@ -217,19 +122,12 @@ export default function LoginScreen() {
                                 placeholderTextColor="#9CA3AF"
                                 className="flex-1 py-4 text-base text-gray-900"
                             />
-
-                            <Pressable
-                                onPress={() =>
-                                    setShowPassword(
-                                        !showPassword
-                                    )
-                                }
-                            >
-                                <Text className="text-sm font-semibold text-blue-600">
-                                    {showPassword
-                                        ? "Hide"
-                                        : "Show"}
-                                </Text>
+                            <Pressable onPress={() => setShowPassword(!showPassword)} className="p-1">
+                                <Ionicons
+                                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                                    size={20}
+                                    color="#6B7280"
+                                />
                             </Pressable>
                         </View>
                     </View>
@@ -238,26 +136,19 @@ export default function LoginScreen() {
                     <Pressable
                         onPress={handleLogin}
                         disabled={loading}
-                        className={`h-14 items-center justify-center rounded-2xl ${loading
-                                ? "bg-blue-400"
-                                : "bg-blue-600"
-                            }`}
+                        className={`h-14 items-center justify-center rounded-2xl ${loading ? "bg-blue-400" : "bg-blue-600"}`}
                     >
-                        {loading ? (
-                            <ActivityIndicator color="#ffffff" />
-                        ) : (
-                            <Text className="text-base font-bold tracking-wide text-white">
-                                Sign In
-                            </Text>
-                        )}
+                        {loading
+                            ? <ActivityIndicator color="#ffffff" />
+                            : <Text className="text-base font-bold tracking-wide text-white">Sign In</Text>
+                        }
                     </Pressable>
                 </View>
 
                 {/* Footer */}
                 <View className="mt-10 items-center">
                     <Text className="text-center text-xs leading-5 text-gray-400">
-                        School ERP Management
-                        System © 2026
+                        School ERP Management System © 2026
                     </Text>
                 </View>
             </KeyboardAwareScrollView>

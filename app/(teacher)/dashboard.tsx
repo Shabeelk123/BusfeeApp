@@ -1,37 +1,51 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
     Pressable,
-    SafeAreaView,
-    ScrollView,
     Text,
-    View,
+    View
 } from "react-native";
+import ScreenWrapper from "../../components/common/ScreenWrapper";
 import { useAppDispatch, useAppSelector } from "../../hooks/redux";
 import { supabase } from "../../lib/supabase";
 import { clearUser } from "../../store/authSlice";
 
-interface NavCardProps {
-    emoji: string;
+function NavCard({
+    iconName,
+    iconBg,
+    iconColor,
+    title,
+    subtitle,
+    onPress,
+}: {
+    iconName: keyof typeof Ionicons.glyphMap;
+    iconBg: string;
+    iconColor: string;
     title: string;
     subtitle: string;
-    color: string;
     onPress: () => void;
-}
-
-function NavCard({ emoji, title, subtitle, color, onPress }: NavCardProps) {
+}) {
     return (
         <Pressable
             onPress={onPress}
-            className="mb-4 flex-row items-center rounded-2xl bg-slate-800 p-5 active:opacity-80"
+            style={({ pressed }) => ({
+                opacity: pressed ? 0.75 : 1,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 2,
+            })}
+            className="mb-4 flex-row items-center rounded-3xl bg-white p-5"
         >
-            <View className={`mr-4 h-12 w-12 items-center justify-center rounded-xl ${color}`}>
-                <Text className="text-xl">{emoji}</Text>
+            <View className={`mr-4 h-14 w-14 items-center justify-center rounded-2xl ${iconBg}`}>
+                <Ionicons name={iconName} size={28} color={iconColor} />
             </View>
             <View className="flex-1">
-                <Text className="font-bold text-white">{title}</Text>
-                <Text className="mt-0.5 text-xs text-slate-400">{subtitle}</Text>
+                <Text className="text-base font-bold text-gray-900">{title}</Text>
+                <Text className="mt-1 text-sm text-gray-500">{subtitle}</Text>
             </View>
-            <Text className="text-slate-500">›</Text>
+            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
         </Pressable>
     );
 }
@@ -47,62 +61,75 @@ export default function TeacherDashboard() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
-            <ScrollView
-                className="flex-1 px-5"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingTop: 24, paddingBottom: 40 }}
-            >
-                {/* Header */}
-                <View className="mb-8 flex-row items-center justify-between">
-                    <View>
-                        <Text className="text-sm text-slate-400">Welcome back,</Text>
-                        <Text className="text-2xl font-bold text-white">
-                            {user?.name ?? "Teacher"} 👋
-                        </Text>
-                    </View>
-                    <View className="h-12 w-12 items-center justify-center rounded-full bg-purple-600">
-                        <Text className="text-xl">👩‍🏫</Text>
-                    </View>
-                </View>
-
-                {/* Banner */}
-                <View className="mb-8 rounded-2xl bg-purple-700 p-5">
-                    <Text className="text-xs font-semibold uppercase tracking-widest text-purple-200">
-                        Teacher Panel
+        <ScreenWrapper>
+            {/* ── Header ── */}
+            <View className="mb-6 flex-row items-center justify-between">
+                <View>
+                    <Text className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                        Teacher Portal
                     </Text>
-                    <Text className="mt-1 text-xl font-bold text-white">Class Management</Text>
-                    <Text className="mt-1 text-sm text-purple-200">
-                        Manage your students and track fee payments
+                    <Text className="mt-1 text-2xl font-bold text-gray-900">
+                        {user?.name ?? "Teacher"}
                     </Text>
                 </View>
-
-                <Text className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Quick Access</Text>
-
-                <NavCard
-                    emoji="🎓"
-                    title="My Students"
-                    subtitle="View and manage class students"
-                    color="bg-blue-600"
-                    onPress={() => router.push("/(teacher)/students")}
-                />
-                <NavCard
-                    emoji="⚠️"
-                    title="Defaulters"
-                    subtitle="Students with pending fees"
-                    color="bg-red-600"
-                    onPress={() => router.push("/(teacher)/defaulters")}
-                />
-
-                {/* Logout */}
                 <Pressable
                     onPress={handleLogout}
-                    className="mt-4 flex-row items-center justify-center rounded-2xl border border-red-800 bg-red-950 py-4 active:opacity-80"
+                    style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                    className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
                 >
-                    <Text className="mr-2">🚪</Text>
-                    <Text className="font-semibold text-red-400">Sign Out</Text>
+                    <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                    <Text className="text-sm font-semibold text-red-500">Sign Out</Text>
                 </Pressable>
-            </ScrollView>
-        </SafeAreaView>
+            </View>
+
+            {/* ── Hero Banner ── */}
+            <View
+                className="mb-6 overflow-hidden rounded-3xl bg-purple-600 p-6"
+                style={{ shadowColor: "#7c3aed", shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}
+            >
+                <View className="flex-row items-center justify-between">
+                    <View className="flex-1">
+                        <Text className="text-xs font-bold uppercase tracking-widest text-purple-200">
+                            BusFee Tracker
+                        </Text>
+                        <Text className="mt-1.5 text-xl font-bold text-white">Teacher Portal</Text>
+                        <Text className="mt-1 text-sm text-purple-200">Manage your class & track fees</Text>
+                    </View>
+                    <View className="h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
+                        <Ionicons name="book" size={36} color="white" />
+                    </View>
+                </View>
+            </View>
+
+            {/* ── Quick Access ── */}
+            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
+                Quick Access
+            </Text>
+
+            <NavCard
+                iconName="people-outline"
+                iconBg="bg-blue-100"
+                iconColor="#2563eb"
+                title="My Students"
+                subtitle="View and manage class students"
+                onPress={() => router.push("/(teacher)/students")}
+            />
+            <NavCard
+                iconName="alert-circle-outline"
+                iconBg="bg-red-100"
+                iconColor="#ef4444"
+                title="Defaulters"
+                subtitle="Students with outstanding fees"
+                onPress={() => router.push("/(teacher)/defaulters")}
+            />
+
+            {/* ── Bottom info card ── */}
+            <View className="mt-2 rounded-3xl bg-white p-6 shadow-sm">
+                <Text className="text-xl font-bold text-gray-900">Your Class</Text>
+                <Text className="mt-2 leading-6 text-gray-500">
+                    Monitor student fee payments, track defaulters, and manage your class roster from here.
+                </Text>
+            </View>
+        </ScreenWrapper>
     );
 }

@@ -1,18 +1,18 @@
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
-    Platform,
     Pressable,
-    SafeAreaView,
-    ScrollView,
     Text,
     TextInput,
     View,
 } from "react-native";
-import { router } from "expo-router";
-import { createStudent } from "../../../services/student.service";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { getCurrentUserProfile } from "../../../services/auth.service";
+import { createStudent } from "../../../services/student.service";
 
 interface FieldProps {
     label: string;
@@ -22,26 +22,30 @@ interface FieldProps {
     keyboardType?: any;
     secureTextEntry?: boolean;
     autoCapitalize?: any;
-    emoji?: string;
     required?: boolean;
+    iconName: keyof typeof Ionicons.glyphMap;
 }
 
-function Field({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, autoCapitalize, emoji, required }: FieldProps) {
+function Field({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, autoCapitalize, required, iconName }: FieldProps) {
     return (
-        <View className="mb-4">
-            <Text className="mb-2 text-sm font-semibold text-slate-400">
-                {emoji} {label}{required && <Text className="text-red-400"> *</Text>}
+        <View className="mb-5">
+            <Text className="mb-2 ml-1 text-sm font-semibold text-gray-700">
+                {label}
+                {required && <Text className="text-red-500"> *</Text>}
             </Text>
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#64748b"
-                keyboardType={keyboardType}
-                secureTextEntry={secureTextEntry}
-                autoCapitalize={autoCapitalize ?? "words"}
-                className="rounded-xl border border-slate-600 bg-slate-700 px-4 py-4 text-base text-white"
-            />
+            <View className="flex-row items-center rounded-2xl border border-gray-200 bg-gray-50 px-4">
+                <Ionicons name={iconName} size={18} color="#9CA3AF" style={{ marginRight: 10 }} />
+                <TextInput
+                    value={value}
+                    onChangeText={onChangeText}
+                    placeholder={placeholder}
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType={keyboardType}
+                    secureTextEntry={secureTextEntry}
+                    autoCapitalize={autoCapitalize ?? "words"}
+                    className="flex-1 py-4 text-base text-gray-900"
+                />
+            </View>
         </View>
     );
 }
@@ -59,10 +63,9 @@ export default function TeacherCreateStudentScreen() {
 
     const handleCreate = async () => {
         if (!fullName || !admissionNo || !monthlyFee || !email || !password) {
-            Alert.alert("Missing fields", "Please fill in all required fields.");
+            Alert.alert("Missing Fields", "Please fill in all required fields.");
             return;
         }
-
         try {
             setLoading(true);
             const profile = await getCurrentUserProfile();
@@ -70,7 +73,6 @@ export default function TeacherCreateStudentScreen() {
                 Alert.alert("Error", "Teacher profile not found. Please log in again.");
                 return;
             }
-
             const { error } = await createStudent({
                 full_name: fullName,
                 admission_no: admissionNo,
@@ -82,9 +84,8 @@ export default function TeacherCreateStudentScreen() {
                 email,
                 password,
             });
-
             if (error) { Alert.alert("Error", error.message); return; }
-            Alert.alert("Student Added ✅", "Student has been registered successfully.");
+            Alert.alert("Success", "Student registered successfully.");
             router.back();
         } catch (error) {
             Alert.alert("Error", "Failed to create student. Please try again.");
@@ -94,58 +95,96 @@ export default function TeacherCreateStudentScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
-            <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                    <View className="px-5 pt-6">
-                        <Pressable onPress={() => router.back()} className="mb-4">
-                            <Text className="text-indigo-400">← Back</Text>
-                        </Pressable>
-                        <Text className="mb-1 text-2xl font-bold text-white">Register Student</Text>
-                        <Text className="mb-6 text-sm text-slate-400">Add a student to your class</Text>
+        <ScreenWrapper>
+            <KeyboardAwareScrollView
+                enableOnAndroid
+                extraScrollHeight={30}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Back */}
+                <Pressable
+                    onPress={() => router.back()}
+                    className="mb-6 flex-row items-center self-start rounded-full bg-white px-4 py-2"
+                    style={({ pressed }: any) => ({ opacity: pressed ? 0.7 : 1, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 })}
+                >
+                    <Ionicons name="arrow-back" size={16} color="#2563eb" style={{ marginRight: 4 }} />
+                    <Text className="font-semibold text-blue-600">Back</Text>
+                </Pressable>
 
-                        {/* Personal Info */}
-                        <View className="mb-4 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Personal Information</Text>
-                            <Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="e.g. Rahul Kumar" required emoji="👤" />
-                            <Field label="Admission Number" value={admissionNo} onChangeText={setAdmissionNo} placeholder="e.g. ADM-2024-001" required autoCapitalize="characters" emoji="🆔" />
-                            <Field label="Parent Name" value={parentName} onChangeText={setParentName} placeholder="e.g. Raj Kumar" emoji="👨‍👩‍👧" />
-                            <Field label="Phone Number" value={phone} onChangeText={setPhone} placeholder="e.g. 9876543210" keyboardType="phone-pad" autoCapitalize="none" emoji="📞" />
+                {/* Header */}
+                <View className="mb-8">
+                    <Text className="text-3xl font-black tracking-tight text-gray-900">Add Student</Text>
+                    <Text className="mt-2 text-base leading-6 text-gray-500">
+                        Create a new student profile for your class
+                    </Text>
+                </View>
+
+                {/* Personal Info */}
+                <View
+                    className="mb-5 rounded-[28px] border border-gray-100 bg-white p-6"
+                    style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 }}
+                >
+                    <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
+                        Personal Information
+                    </Text>
+                    <Field iconName="person-outline" label="Full Name" value={fullName} onChangeText={setFullName} placeholder="e.g. Rahul Kumar" required />
+                    <Field iconName="id-card-outline" label="Admission Number" value={admissionNo} onChangeText={setAdmissionNo} placeholder="e.g. ADM-2026-001" required autoCapitalize="characters" />
+                    <Field iconName="people-outline" label="Parent Name" value={parentName} onChangeText={setParentName} placeholder="e.g. Raj Kumar" />
+                    <Field iconName="call-outline" label="Phone Number" value={phone} onChangeText={setPhone} placeholder="e.g. 9876543210" keyboardType="phone-pad" autoCapitalize="none" />
+                </View>
+
+                {/* School Details */}
+                <View
+                    className="mb-5 rounded-[28px] border border-gray-100 bg-white p-6"
+                    style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 }}
+                >
+                    <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
+                        School Details
+                    </Text>
+
+                    {/* Class auto-assigned */}
+                    <View className="mb-5">
+                        <Text className="mb-2 ml-1 text-sm font-semibold text-gray-700">Class</Text>
+                        <View className="flex-row items-center rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
+                            <Ionicons name="checkmark-circle" size={18} color="#2563eb" style={{ marginRight: 10 }} />
+                            <Text className="flex-1 text-sm text-blue-600">Auto-assigned from your teacher profile</Text>
                         </View>
-
-                        {/* Class (auto-assigned) */}
-                        <View className="mb-4 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">School Details</Text>
-                            <View className="mb-4">
-                                <Text className="mb-2 text-sm font-semibold text-slate-400">📚 Class</Text>
-                                <View className="flex-row items-center rounded-xl border border-slate-600 bg-slate-700 px-4 py-4">
-                                    <Text className="mr-2">✅</Text>
-                                    <Text className="flex-1 text-sm text-slate-400">Auto-assigned from your teacher profile</Text>
-                                </View>
-                            </View>
-                            <Field label="Bus Route" value={busRoute} onChangeText={setBusRoute} placeholder="e.g. Route 3 - Sector 7" emoji="🚌" />
-                            <Field label="Monthly Fee (₹)" value={monthlyFee} onChangeText={setMonthlyFee} placeholder="e.g. 1200" keyboardType="numeric" required autoCapitalize="none" emoji="💰" />
-                        </View>
-
-                        {/* Login Credentials */}
-                        <View className="mb-6 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Login Credentials</Text>
-                            <Field label="Email" value={email} onChangeText={setEmail} placeholder="student@school.com" keyboardType="email-address" required autoCapitalize="none" emoji="✉️" />
-                            <Field label="Password" value={password} onChangeText={setPassword} placeholder="Min. 6 characters" secureTextEntry required autoCapitalize="none" emoji="🔒" />
-                        </View>
-
-                        <Pressable
-                            onPress={handleCreate}
-                            disabled={loading}
-                            className={`items-center rounded-xl py-4 ${loading ? "bg-purple-400" : "bg-purple-600"}`}
-                        >
-                            <Text className="font-bold text-white">
-                                {loading ? "Registering..." : "✓ Register Student"}
-                            </Text>
-                        </Pressable>
                     </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+
+                    <Field iconName="bus-outline" label="Bus Route" value={busRoute} onChangeText={setBusRoute} placeholder="e.g. Route 3 - Sector 7" />
+                    <Field iconName="cash-outline" label="Monthly Fee (₹)" value={monthlyFee} onChangeText={setMonthlyFee} placeholder="e.g. 1200" keyboardType="numeric" required autoCapitalize="none" />
+                </View>
+
+                {/* Login Credentials */}
+                <View
+                    className="rounded-[28px] border border-gray-100 bg-white p-6"
+                    style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 }}
+                >
+                    <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
+                        Login Credentials
+                    </Text>
+                    <Field iconName="mail-outline" label="Email" value={email} onChangeText={setEmail} placeholder="student@school.com" keyboardType="email-address" required autoCapitalize="none" />
+                    <Field iconName="lock-closed-outline" label="Password" value={password} onChangeText={setPassword} placeholder="Minimum 6 characters" secureTextEntry required autoCapitalize="none" />
+                </View>
+
+                {/* Submit */}
+                <Pressable
+                    onPress={handleCreate}
+                    disabled={loading}
+                    style={({ pressed }) => ({ opacity: pressed || loading ? 0.8 : 1 })}
+                    className={`mt-8 h-14 flex-row items-center justify-center rounded-2xl ${loading ? "bg-blue-400" : "bg-blue-600"}`}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <>
+                            <Ionicons name="person-add-outline" size={18} color="white" style={{ marginRight: 8 }} />
+                            <Text className="text-base font-bold tracking-wide text-white">Register Student</Text>
+                        </>
+                    )}
+                </Pressable>
+            </KeyboardAwareScrollView>
+        </ScreenWrapper>
     );
 }

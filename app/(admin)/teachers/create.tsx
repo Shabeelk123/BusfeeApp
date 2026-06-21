@@ -1,16 +1,14 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import {
     Alert,
-    KeyboardAvoidingView,
-    Platform,
     Pressable,
-    SafeAreaView,
     ScrollView,
     Text,
     TextInput,
-    View,
+    View
 } from "react-native";
-import { router } from "expo-router";
+import ScreenWrapper from "../../../components/common/ScreenWrapper";
 import { createTeacher } from "../../../services/teacher.service";
 
 interface FieldProps {
@@ -71,51 +69,49 @@ export default function CreateTeacherScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
-            <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                    <View className="px-5 pt-6">
-                        <Pressable onPress={() => router.back()} className="mb-4">
-                            <Text className="text-indigo-400">← Back</Text>
-                        </Pressable>
+        <ScreenWrapper>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                <View>
+                    <Pressable onPress={() => router.back()} className="mb-4">
+                        <Text className="text-indigo-400">← Back</Text>
+                    </Pressable>
 
-                        <Text className="mb-1 text-2xl font-bold text-white">Create Teacher</Text>
-                        <Text className="mb-6 text-sm text-slate-400">Set up a new teacher account</Text>
+                    <Text className="mb-1 text-2xl font-bold text-indigo-900">Create Teacher</Text>
+                    <Text className="mb-6 text-sm text-slate-400">Set up a new teacher account</Text>
 
-                        {/* Personal Info */}
-                        <View className="mb-4 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Teacher Information</Text>
-                            <Field label="Full Name" value={name} onChangeText={setName} placeholder="e.g. Mrs. Anita Sharma" required emoji="👩‍🏫" />
-                            <Field label="Assigned Class" value={assignedClass} onChangeText={setAssignedClass} placeholder="e.g. 10-A" emoji="📚" />
-                        </View>
-
-                        {/* Credentials */}
-                        <View className="mb-6 rounded-2xl bg-slate-800 p-5">
-                            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Login Credentials</Text>
-                            <Field label="Email" value={email} onChangeText={setEmail} placeholder="teacher@school.com" keyboardType="email-address" required autoCapitalize="none" emoji="✉️" />
-                            <Field label="Password" value={password} onChangeText={setPassword} placeholder="Min. 6 characters" secureTextEntry required autoCapitalize="none" emoji="🔒" />
-                        </View>
-
-                        {/* Info note */}
-                        <View className="mb-6 flex-row rounded-xl bg-indigo-950 border border-indigo-800 p-4">
-                            <Text className="mr-2">ℹ️</Text>
-                            <Text className="flex-1 text-xs text-indigo-300">
-                                The teacher will be able to log in with these credentials and manage students in their assigned class.
-                            </Text>
-                        </View>
-
-                        <Pressable
-                            onPress={handleCreate}
-                            disabled={loading}
-                            className={`items-center rounded-xl py-4 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
-                        >
-                            <Text className="font-bold text-white">
-                                {loading ? "Creating..." : "✓ Create Teacher"}
-                            </Text>
-                        </Pressable>
+                    {/* Personal Info */}
+                    <View className="mb-4 rounded-2xl bg-slate-800 p-5">
+                        <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Teacher Information</Text>
+                        <Field label="Full Name" value={name} onChangeText={setName} placeholder="e.g. Mrs. Anita Sharma" required emoji="👩‍🏫" />
+                        <Field label="Assigned Class" value={assignedClass} onChangeText={setAssignedClass} placeholder="e.g. 10-A" emoji="📚" />
                     </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+
+                    {/* Credentials */}
+                    <View className="mb-6 rounded-2xl bg-slate-800 p-5">
+                        <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-500">Login Credentials</Text>
+                        <Field label="Email" value={email} onChangeText={setEmail} placeholder="teacher@school.com" keyboardType="email-address" required autoCapitalize="none" emoji="✉️" />
+                        <Field label="Password" value={password} onChangeText={setPassword} placeholder="Min. 6 characters" secureTextEntry required autoCapitalize="none" emoji="🔒" />
+                    </View>
+
+                    {/* Info note */}
+                    <View className="mb-6 flex-row rounded-xl bg-indigo-950 border border-indigo-800 p-4">
+                        <Text className="mr-2">ℹ️</Text>
+                        <Text className="flex-1 text-xs text-indigo-300">
+                            The teacher will be able to log in with these credentials and manage students in their assigned class.
+                        </Text>
+                    </View>
+
+                    <Pressable
+                        onPress={handleCreate}
+                        disabled={loading}
+                        className={`items-center rounded-xl py-4 ${loading ? "bg-indigo-400" : "bg-indigo-600"}`}
+                    >
+                        <Text className="font-bold text-white">
+                            {loading ? "Creating..." : "✓ Create Teacher"}
+                        </Text>
+                    </Pressable>
+                </View>
+            </ScrollView>
+        </ScreenWrapper>
     );
 }

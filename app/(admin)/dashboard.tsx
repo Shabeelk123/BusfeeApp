@@ -7,23 +7,26 @@ import {
     View,
 } from "react-native";
 
-import {
-    useEffect,
-    useState,
-} from "react";
+import { useEffect, useState } from "react";
 
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-
 import StatCard from "../../components/dashboard/StatCard";
-
+import { useAppDispatch, useAppSelector } from "../../hooks/redux";
+import { supabase } from "../../lib/supabase";
 import { getDashboardStats } from "../../services/dashboard.service";
+import { clearUser } from "../../store/authSlice";
 
-interface ActionCardProps {
+
+interface Props {
     title: string;
 
     subtitle: string;
 
-    emoji: string;
+    icon: React.ReactNode;
+
+    bgColor: string;
 
     onPress: () => void;
 }
@@ -31,25 +34,24 @@ interface ActionCardProps {
 function DashboardActionCard({
     title,
     subtitle,
-    emoji,
+    icon,
+    bgColor,
     onPress,
-}: ActionCardProps) {
+}: Props) {
     return (
         <Pressable
             onPress={onPress}
-            className="mb-4 w-[48%] rounded-3xl bg-white p-5 shadow-sm"
+            className={`mb-4 w-[48%] rounded-3xl p-5 ${bgColor}`}
         >
-            <View className="mb-4 h-14 w-14 items-center justify-center rounded-2xl bg-blue-100">
-                <Text className="text-2xl">
-                    {emoji}
-                </Text>
+            <View className="mb-4 h-14 w-14 items-center justify-center rounded-2xl bg-white/20">
+                {icon}
             </View>
 
-            <Text className="text-lg font-bold text-gray-900">
+            <Text className="text-lg font-bold text-slate-900">
                 {title}
             </Text>
 
-            <Text className="mt-1 text-sm leading-5 text-gray-500">
+            <Text className="mt-1 text-xs leading-5 text-slate-700">
                 {subtitle}
             </Text>
         </Pressable>
@@ -57,29 +59,29 @@ function DashboardActionCard({
 }
 
 export default function DashboardScreen() {
-    const [stats, setStats] =
-        useState<any>(null);
+    const dispatch = useAppDispatch();
+    const user = useAppSelector((state) => state.auth.user);
+    const [stats, setStats] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    const [loading, setLoading] =
-        useState(true);
+    const fetchStats = async () => {
+        try {
+            const data = await getDashboardStats();
+            setStats(data);
+        } catch (error) {
+            console.log(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const fetchStats =
-        async () => {
-            try {
-                const data =
-                    await getDashboardStats();
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        dispatch(clearUser());
+        router.replace("/(auth)/login");
+    };
 
-                setStats(data);
-            } catch (error) {
-                console.log(error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-    useEffect(() => {
-        fetchStats();
-    }, []);
+    useEffect(() => { fetchStats(); }, []);
 
     if (loading) {
         return (
@@ -90,28 +92,32 @@ export default function DashboardScreen() {
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-gray-50">
+        <ScreenWrapper>
             <ScrollView
-                showsVerticalScrollIndicator={
-                    false
-                }
-                contentContainerStyle={{
-                    padding: 20,
-                    paddingBottom: 40,
-                }}
+                showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
-                <View className="mb-8">
-                    <Text className="text-4xl font-black tracking-tight text-gray-900">
-                        Dashboard
-                    </Text>
-
-                    <Text className="mt-2 text-base text-gray-500">
-                        School ERP overview
-                    </Text>
+                {/* ── Header ── */}
+                <View className="mb-6 flex-row items-center justify-between">
+                    <View>
+                        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                            Admin Panel
+                        </Text>
+                        <Text className="mt-1 text-2xl font-bold text-gray-900">
+                            {user?.name ?? "Admin"}
+                        </Text>
+                    </View>
+                    <Pressable
+                        onPress={handleLogout}
+                        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+                        className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
+                    >
+                        <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                        <Text className="text-sm font-semibold text-red-500">Sign Out</Text>
+                    </Pressable>
                 </View>
 
                 {/* Stats Cards */}
+                {/* Stats */}
                 <View className="flex-row flex-wrap justify-between">
                     <StatCard
                         title="Students"
@@ -119,7 +125,15 @@ export default function DashboardScreen() {
                             stats?.totalStudents ||
                             0
                         }
-                        color="bg-blue-600"
+                        bgColor="bg-blue-100"
+                        valueColor="text-blue-900"
+                        icon={
+                            <Ionicons
+                                name="school-outline"
+                                size={28}
+                                color="#2563EB"
+                            />
+                        }
                     />
 
                     <StatCard
@@ -128,27 +142,51 @@ export default function DashboardScreen() {
                             stats?.totalTeachers ||
                             0
                         }
-                        color="bg-green-600"
+                        bgColor="bg-green-100"
+                        valueColor="text-green-900"
+                        icon={
+                            <Ionicons
+                                name="people-outline"
+                                size={28}
+                                color="#16A34A"
+                            />
+                        }
                     />
 
                     <StatCard
                         title="Collection"
                         value={`₹${stats?.monthlyCollection || 0
                             }`}
-                        color="bg-purple-600"
+                        bgColor="bg-purple-100"
+                        valueColor="text-purple-900"
+                        icon={
+                            <Ionicons
+                                name="card-outline"
+                                size={28}
+                                color="#7C3AED"
+                            />
+                        }
                     />
 
                     <StatCard
-                        title="Monthly Fees"
+                        title="Pending"
                         value={`₹${stats?.pendingAmount || 0
                             }`}
-                        color="bg-orange-500"
+                        bgColor="bg-red-100"
+                        valueColor="text-red-900"
+                        icon={
+                            <Ionicons
+                                name="warning-outline"
+                                size={28}
+                                color="#DC2626"
+                            />
+                        }
                     />
                 </View>
 
                 {/* Quick Actions */}
                 <View className="mt-6">
-                    <Text className="mb-4 text-2xl font-black text-gray-900">
+                    <Text className="mb-4 text-2xl font-black text-slate-900">
                         Quick Actions
                     </Text>
 
@@ -156,7 +194,14 @@ export default function DashboardScreen() {
                         <DashboardActionCard
                             title="Students"
                             subtitle="Manage students"
-                            emoji="🎓"
+                            bgColor="bg-blue-100"
+                            icon={
+                                <Ionicons
+                                    name="school-outline"
+                                    size={26}
+                                    color="#2563EB"
+                                />
+                            }
                             onPress={() =>
                                 router.push(
                                     "/students"
@@ -167,7 +212,14 @@ export default function DashboardScreen() {
                         <DashboardActionCard
                             title="Teachers"
                             subtitle="Manage teachers"
-                            emoji="👨‍🏫"
+                            bgColor="bg-green-100"
+                            icon={
+                                <Ionicons
+                                    name="people-outline"
+                                    size={26}
+                                    color="#16A34A"
+                                />
+                            }
                             onPress={() =>
                                 router.push(
                                     "/teachers/create"
@@ -176,44 +228,43 @@ export default function DashboardScreen() {
                         />
 
                         <DashboardActionCard
-                            title="Defaulters"
-                            subtitle="Pending students"
-                            emoji="⚠️"
-                            onPress={() =>
-                                router.push(
-                                    "/defaulters"
-                                )
-                            }
-                        />
-
-                        <DashboardActionCard
                             title="Reports"
-                            subtitle="Analytics & exports"
-                            emoji="📊"
+                            subtitle="Analytics"
+                            bgColor="bg-orange-100"
+                            icon={
+                                <Ionicons
+                                    name="analytics-outline"
+                                    size={26}
+                                    color="#EA580C"
+                                />
+                            }
                             onPress={() =>
                                 router.push(
                                     "/reports"
                                 )
                             }
                         />
+
+                        <DashboardActionCard
+                            title="Defaulters"
+                            subtitle="Pending students"
+                            bgColor="bg-red-100"
+                            icon={
+                                <Ionicons
+                                    name="warning-outline"
+                                    size={26}
+                                    color="#DC2626"
+                                />
+                            }
+                            onPress={() =>
+                                router.push(
+                                    "/defaulters"
+                                )
+                            }
+                        />
                     </View>
                 </View>
-
-                {/* Bottom Section */}
-                <View className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
-                    <Text className="text-xl font-bold text-gray-900">
-                        Current Month
-                    </Text>
-
-                    <Text className="mt-2 leading-6 text-gray-500">
-                        Track collections,
-                        pending dues, student
-                        management, and
-                        operational insights
-                        from your ERP system.
-                    </Text>
-                </View>
             </ScrollView>
-        </SafeAreaView>
+        </ScreenWrapper>
     );
 }

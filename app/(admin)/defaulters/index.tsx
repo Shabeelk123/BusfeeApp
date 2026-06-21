@@ -1,550 +1,136 @@
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { getClasses } from "@/services/class.service";
+import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
-    Pressable,
+    SafeAreaView,
     Text,
     View,
 } from "react-native";
+import AppSelect from "../../../components/common/AppSelect";
+import { getCurrentMonthDefaulters } from "../../../services/defaulters.service";
 
-import {
-    useCallback,
-    useState,
-} from "react";
+export default function DefaultersScreen() {
+    const [students, setStudents] = useState<any[]>([]);
+    const [selectedClass, setSelectedClass] = useState("ALL");
+    const [classes, setClasses] = useState<string[]>(["ALL"]);
+    const [loading, setLoading] = useState(true);
 
-import { Picker } from "@react-native-picker/picker";
+    const fetchClasses = async () => {
+        const { data, error } = await getClasses();
+        if (error) { console.log(error); return; }
+        setClasses(data);
+    };
 
-import { useFocusEffect } from "@react-navigation/native";
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const { data, error } = await getCurrentMonthDefaulters({ selectedClass });
+            if (error) { console.log(error); return; }
+            setStudents(data);
+        } catch (error) {
+            console.log(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { getClasses } from "@/services/class.service";
-import { downloadReportPdf } from "@/services/report-pdf.service";
-import { getReportData } from "@/services/report.service";
-import { generateDetailedReport } from "@/utils/generateDetailedReport";
-import { generateReportSummary } from "@/utils/report";
-
-export default function ReportsScreen() {
-    const now =
-        new Date();
-
-    const [loading, setLoading] =
-        useState(true);
-
-    const [summary, setSummary] =
-        useState<any>(null);
-
-    const [reportRows, setReportRows] =
-        useState<any[]>([]);
-
-    const [selectedClass, setSelectedClass] =
-        useState("ALL");
-
-    const [classes, setClasses] =
-        useState<string[]>([
-            "ALL",
-        ]);
-
-    const [selectedMonth, setSelectedMonth] =
-        useState(
-            now.getMonth() + 1
-        );
-
-    const [selectedYear] =
-        useState(
-            now.getFullYear()
-        );
-
-    const fetchClasses =
-        async () => {
-            const {
-                data,
-                error,
-            } =
-                await getClasses();
-
-            if (error) {
-                console.log(error);
-
-                return;
-            }
-
-            setClasses(data);
-        };
-
-    const fetchReports =
-        async () => {
-            try {
-                setLoading(true);
-
-                const {
-                    data,
-                    error,
-                } =
-                    await getReportData({
-                        selectedClass,
-                    });
-
-                if (
-                    error ||
-                    !data
-                ) {
-                    console.log(
-                        error
-                    );
-
-                    return;
-                }
-
-                // SUMMARY
-                const summaryData =
-                    generateReportSummary(
-                        {
-                            students:
-                                data.students,
-
-                            feeAssignments:
-                                data.feeAssignments,
-
-                            transactions:
-                                data.transactions,
-
-                            selectedMonth,
-
-                            selectedYear,
-                        }
-                    );
-
-                setSummary(
-                    summaryData
-                );
-
-                // DETAILED
-                const detailedRows =
-                    generateDetailedReport(
-                        {
-                            students:
-                                data.students,
-
-                            feeAssignments:
-                                data.feeAssignments,
-
-                            transactions:
-                                data.transactions,
-
-                            selectedMonth,
-
-                            selectedYear,
-                        }
-                    );
-
-                setReportRows(
-                    detailedRows
-                );
-            } catch (error) {
-                console.log(error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchClasses();
-
-            fetchReports();
-        }, [
-            selectedClass,
-            selectedMonth,
-        ])
-    );
+    useEffect(() => { fetchClasses(); fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [selectedClass]);
 
     if (loading) {
         return (
-            <ScreenWrapper backgroundColor="#020617">
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator
-                        size="large"
-                        color="#6366F1"
-                    />
-
-                    <Text className="mt-3 text-sm text-slate-400">
-                        Generating
-                        report...
-                    </Text>
-                </View>
-            </ScreenWrapper>
+            <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
+                <ActivityIndicator size="large" color="#2563eb" />
+                <Text className="mt-3 text-sm text-gray-400">Loading defaulters…</Text>
+            </SafeAreaView>
         );
     }
 
     return (
-        <ScreenWrapper backgroundColor="#020617">
+        <ScreenWrapper>
             <FlatList
-                data={reportRows}
-                keyExtractor={(
-                    item
-                ) =>
-                    item.studentId
-                }
-                showsVerticalScrollIndicator={
-                    false
-                }
-                contentContainerStyle={{
-                    paddingHorizontal: 20,
-                    paddingTop: 12,
-                    paddingBottom: 40,
-                }}
+                data={students}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
                 ListHeaderComponent={
                     <>
-                        {/* Header */}
-                        <Text className="text-4xl font-black text-white">
-                            Reports
-                        </Text>
-
-                        <Text className="mt-2 text-base text-slate-400">
-                            Financial
-                            overview
-                            across all
-                            students
-                        </Text>
-
-                        {/* Class Filter */}
-                        <View className="mt-6 overflow-hidden rounded-2xl border border-slate-700 bg-slate-800">
-                            <Picker
-                                selectedValue={
-                                    selectedClass
-                                }
-                                dropdownIconColor="#fff"
-                                style={{
-                                    color:
-                                        "white",
-                                }}
-                                onValueChange={(
-                                    value
-                                ) =>
-                                    setSelectedClass(
-                                        value
-                                    )
-                                }
-                            >
-                                {classes.map(
-                                    (
-                                        item
-                                    ) => (
-                                        <Picker.Item
-                                            key={
-                                                item
-                                            }
-                                            label={
-                                                item
-                                            }
-                                            value={
-                                                item
-                                            }
-                                        />
-                                    )
-                                )}
-                            </Picker>
+                        <View className="mb-5">
+                            <Text className="text-3xl font-black text-gray-900">Defaulters</Text>
+                            <Text className="mt-1 text-gray-500">Current month pending students</Text>
                         </View>
 
-                        {/* Month Filter */}
-                        <View className="mt-4 overflow-hidden rounded-2xl border border-slate-700 bg-slate-800">
-                            <Picker
-                                selectedValue={
-                                    selectedMonth
-                                }
-                                dropdownIconColor="#fff"
-                                style={{
-                                    color:
-                                        "white",
-                                }}
-                                onValueChange={(
-                                    value
-                                ) =>
-                                    setSelectedMonth(
-                                        value
-                                    )
-                                }
-                            >
-                                <Picker.Item
-                                    label="January"
-                                    value={
-                                        1
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="February"
-                                    value={
-                                        2
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="March"
-                                    value={
-                                        3
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="April"
-                                    value={
-                                        4
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="May"
-                                    value={
-                                        5
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="June"
-                                    value={
-                                        6
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="July"
-                                    value={
-                                        7
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="August"
-                                    value={
-                                        8
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="September"
-                                    value={
-                                        9
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="October"
-                                    value={
-                                        10
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="November"
-                                    value={
-                                        11
-                                    }
-                                />
-
-                                <Picker.Item
-                                    label="December"
-                                    value={
-                                        12
-                                    }
-                                />
-                            </Picker>
-                        </View>
-
-                        {/* Download */}
-                        <Pressable
-                            onPress={() =>
-                                downloadReportPdf(
-                                    {
-                                        reportRows,
-
-                                        summary,
-
-                                        selectedClass,
-
-                                        selectedMonth,
-
-                                        selectedYear,
-                                    }
+                        <AppSelect
+                            value={selectedClass}
+                            options={classes.map(
+                                (item) => ({
+                                    label: item,
+                                    value: item,
+                                })
+                            )}
+                            onChange={(value) =>
+                                setSelectedClass(
+                                    String(value)
                                 )
                             }
-                            className="mt-5 rounded-2xl bg-indigo-600 py-4"
-                        >
-                            <Text className="text-center text-base font-bold text-white">
-                                Download
-                                PDF
-                            </Text>
-                        </Pressable>
+                        />
 
-                        {/* Collection Banner */}
-                        <View className="mt-6 overflow-hidden rounded-3xl bg-indigo-600 p-5">
-                            <Text className="text-xs font-bold uppercase tracking-widest text-indigo-200">
-                                Collection
-                                Rate
-                            </Text>
-
-                            <Text className="mt-2 text-5xl font-black text-white">
-                                {
-                                    summary?.collectionRate
-                                }
-                                %
-                            </Text>
-
-                            <Text className="mt-2 text-sm text-indigo-200">
-                                of expected
-                                fees
-                                collected
-                            </Text>
-
-                            <View className="mt-4 h-2 overflow-hidden rounded-full bg-indigo-800">
-                                <View
-                                    className="h-2 rounded-full bg-white"
-                                    style={{
-                                        width: `${summary?.collectionRate}%`,
-                                    }}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Stats */}
-                        <View className="mt-5 flex-row flex-wrap justify-between">
-                            <View className="mb-4 w-[48%] rounded-3xl bg-slate-800 p-5">
-                                <Text className="text-2xl">
-                                    🎓
-                                </Text>
-
-                                <Text className="mt-3 text-3xl font-black text-white">
-                                    {
-                                        summary?.totalStudents
-                                    }
-                                </Text>
-
-                                <Text className="mt-1 text-sm text-slate-400">
-                                    Students
+                        {students.length > 0 && (
+                            <View className="mb-5 flex-row items-center rounded-2xl border border-red-200 bg-red-50 p-4">
+                                <Ionicons name="warning-outline" size={22} color="#ef4444" style={{ marginRight: 10 }} />
+                                <Text className="flex-1 text-sm text-red-600">
+                                    These students have outstanding fee dues. Please follow up.
                                 </Text>
                             </View>
-
-                            <View className="mb-4 w-[48%] rounded-3xl bg-green-950 p-5">
-                                <Text className="text-2xl">
-                                    💰
-                                </Text>
-
-                                <Text className="mt-3 text-3xl font-black text-green-400">
-                                    ₹
-                                    {
-                                        summary?.totalCollection
-                                    }
-                                </Text>
-
-                                <Text className="mt-1 text-sm text-slate-400">
-                                    Collected
-                                </Text>
-                            </View>
-
-                            <View className="w-[48%] rounded-3xl bg-red-950 p-5">
-                                <Text className="text-2xl">
-                                    ⚠️
-                                </Text>
-
-                                <Text className="mt-3 text-3xl font-black text-red-400">
-                                    ₹
-                                    {
-                                        summary?.totalPending
-                                    }
-                                </Text>
-
-                                <Text className="mt-1 text-sm text-slate-400">
-                                    Pending
-                                </Text>
-                            </View>
-
-                            <View className="w-[48%] rounded-3xl bg-indigo-950 p-5">
-                                <Text className="text-2xl">
-                                    📌
-                                </Text>
-
-                                <Text className="mt-3 text-3xl font-black text-indigo-400">
-                                    {
-                                        summary?.defaultersCount
-                                    }
-                                </Text>
-
-                                <Text className="mt-1 text-sm text-slate-400">
-                                    Defaulters
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Table Header */}
-                        <View className="mt-8 mb-2 flex-row border-b border-slate-700 pb-3">
-                            <Text className="flex-1 text-xs font-bold uppercase tracking-wider text-slate-400">
-                                Student
-                            </Text>
-
-                            <Text className="w-20 text-right text-xs font-bold uppercase tracking-wider text-slate-400">
-                                Paid
-                            </Text>
-
-                            <Text className="w-20 text-right text-xs font-bold uppercase tracking-wider text-slate-400">
-                                Pending
-                            </Text>
-                        </View>
+                        )}
                     </>
                 }
-                renderItem={({
-                    item,
-                }) => (
-                    <View className="flex-row items-center border-b border-slate-800 py-4">
-                        {/* Student */}
-                        <View className="flex-1">
-                            <Text
-                                numberOfLines={
-                                    1
-                                }
-                                className="font-semibold text-white"
-                            >
-                                {
-                                    item.studentName
-                                }
-                            </Text>
-
-                            <Text className="mt-1 text-xs text-slate-500">
-                                {
-                                    item.className
-                                }
-                            </Text>
-                        </View>
-
-                        {/* Paid */}
-                        <Text className="w-20 text-right text-sm font-bold text-green-400">
-                            ₹
-                            {
-                                item.paid
-                            }
-                        </Text>
-
-                        {/* Pending */}
-                        <Text
-                            className={`w-20 text-right text-sm font-bold ${item.pending >
-                                0
-                                ? "text-red-400"
-                                : "text-indigo-400"
-                                }`}
-                        >
-                            {item.pending >
-                                0
-                                ? `₹${item.pending}`
-                                : "Paid"}
-                        </Text>
-                    </View>
-                )}
                 ListEmptyComponent={
-                    <View className="py-20">
-                        <Text className="text-center text-slate-500">
-                            No reports
-                            found
+                    <View className="mt-20 items-center">
+                        <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+                            <Ionicons name="checkmark-circle" size={48} color="#059669" />
+                        </View>
+                        <Text className="text-2xl font-black text-gray-900">No Defaulters</Text>
+                        <Text className="mt-3 text-center text-base leading-6 text-gray-500">
+                            All students cleared their current month dues
                         </Text>
                     </View>
                 }
+                renderItem={({ item }) => (
+                    <View
+                        className="mb-4 rounded-3xl border border-red-100 bg-white p-5"
+                        style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}
+                    >
+                        <View className="mb-3 flex-row items-center justify-between">
+                            <View className="flex-1">
+                                <Text className="text-lg font-bold text-gray-900">{item.full_name}</Text>
+                                <Text className="mt-0.5 text-sm text-gray-500">Class: {item.class_name}</Text>
+                            </View>
+                            <View className="rounded-full bg-red-100 px-3 py-1">
+                                <Text className="text-xs font-bold text-red-600">DUE</Text>
+                            </View>
+                        </View>
+                        <View className="flex-row justify-between">
+                            <View className="flex-1 items-center rounded-xl bg-gray-50 p-3">
+                                <Ionicons name="cash-outline" size={16} color="#6B7280" />
+                                <Text className="mt-1 text-xs text-gray-400">Monthly Fee</Text>
+                                <Text className="mt-0.5 font-bold text-gray-900">₹{item.monthlyFee}</Text>
+                            </View>
+                            <View className="mx-2 flex-1 items-center rounded-xl bg-emerald-50 p-3">
+                                <Ionicons name="checkmark-circle-outline" size={16} color="#059669" />
+                                <Text className="mt-1 text-xs text-gray-400">Paid</Text>
+                                <Text className="mt-0.5 font-bold text-emerald-600">₹{item.paid}</Text>
+                            </View>
+                            <View className="flex-1 items-center rounded-xl bg-red-50 p-3">
+                                <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
+                                <Text className="mt-1 text-xs text-gray-400">Pending</Text>
+                                <Text className="mt-0.5 font-bold text-red-600">₹{item.pending}</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
             />
         </ScreenWrapper>
     );
