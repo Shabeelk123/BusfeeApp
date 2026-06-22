@@ -1,3 +1,5 @@
+import AppButton from "@/components/common/AppButton";
+import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useToast } from "@/components/common/ToastContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -105,24 +107,13 @@ export default function TeacherCreateStudentScreen() {
                 extraScrollHeight={30}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 48 }}
             >
-                {/* Back */}
-                <Pressable
-                    onPress={() => router.back()}
-                    className="mb-6 flex-row items-center self-start rounded-full bg-white px-4 py-2"
-                    style={({ pressed }: any) => ({ opacity: pressed ? 0.7 : 1, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 })}
-                >
-                    <Ionicons name="arrow-back" size={16} color="#2563eb" style={{ marginRight: 4 }} />
-                    <Text className="font-semibold text-blue-600">Back</Text>
-                </Pressable>
-
-                {/* Header */}
-                <View className="mb-8">
-                    <Text className="text-3xl font-black tracking-tight text-gray-900">Add Student</Text>
-                    <Text className="mt-2 text-base leading-6 text-gray-500">
-                        Create a new student profile for your class
-                    </Text>
-                </View>
+                <PageHeader
+                    title="Add Student"
+                    subtitle="Create a new student profile for your class"
+                    showBack
+                />
 
                 {/* Personal Info */}
                 <View

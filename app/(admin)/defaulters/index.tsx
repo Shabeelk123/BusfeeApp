@@ -1,18 +1,172 @@
-import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { getClasses } from "@/services/class.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import {
-    FlatList,
-    Text,
-    View,
-} from "react-native";
-import AppSelect from "../../../components/common/AppSelect";
-import EmptyState from "../../../components/common/EmptyState";
-import ErrorState from "../../../components/common/ErrorState";
-import LoadingState from "../../../components/common/LoadingState";
-import { getCurrentMonthDefaulters } from "../../../services/defaulters.service";
+import { FlatList, Text, View } from "react-native";
 
+import AppSelect from "@/components/common/AppSelect";
+import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
+import LoadingState from "@/components/common/LoadingState";
+import PageHeader from "@/components/common/PageHeader";
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Colors, Shadows } from "@/constants/colors";
+import { getClasses } from "@/services/class.service";
+import { getCurrentMonthDefaulters } from "@/services/defaulters.service";
+
+// ── Stat Pill ─────────────────────────────────────────────────────────────────
+function StatPill({
+    icon,
+    label,
+    value,
+    iconColor,
+    bgColor,
+    valueColor,
+}: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    value: string;
+    iconColor: string;
+    bgColor: string;
+    valueColor: string;
+}) {
+    return (
+        <View
+            style={{
+                flex: 1,
+                alignItems: "center",
+                borderRadius: 12,
+                backgroundColor: bgColor,
+                paddingVertical: 10,
+                paddingHorizontal: 8,
+            }}
+        >
+            <Ionicons name={icon} size={16} color={iconColor} />
+            <Text
+                style={{
+                    marginTop: 4,
+                    fontSize: 11,
+                    color: Colors.textMuted,
+                    fontWeight: "500",
+                }}
+            >
+                {label}
+            </Text>
+            <Text
+                style={{
+                    marginTop: 2,
+                    fontSize: 14,
+                    fontWeight: "800",
+                    color: valueColor,
+                }}
+            >
+                {value}
+            </Text>
+        </View>
+    );
+}
+
+// ── Defaulter Card ────────────────────────────────────────────────────────────
+function DefaulterCard({ item }: { item: any }) {
+    return (
+        <View
+            style={[
+                {
+                    backgroundColor: Colors.card,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: Colors.dangerBorder,
+                    padding: 16,
+                    marginBottom: 12,
+                },
+                Shadows.card,
+            ]}
+        >
+            {/* Top row */}
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                }}
+            >
+                <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{
+                            fontSize: 16,
+                            fontWeight: "700",
+                            color: Colors.textPrimary,
+                        }}
+                    >
+                        {item.full_name}
+                    </Text>
+                    <Text
+                        style={{
+                            marginTop: 2,
+                            fontSize: 13,
+                            color: Colors.textSecondary,
+                        }}
+                    >
+                        Class: {item.class_name}
+                    </Text>
+                </View>
+
+                {/* DUE badge */}
+                <View
+                    style={{
+                        backgroundColor: Colors.dangerLight,
+                        borderRadius: 999,
+                        paddingHorizontal: 12,
+                        paddingVertical: 4,
+                        borderWidth: 1,
+                        borderColor: Colors.dangerBorder,
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 11,
+                            fontWeight: "800",
+                            color: Colors.danger,
+                            letterSpacing: 0.5,
+                        }}
+                    >
+                        DUE
+                    </Text>
+                </View>
+            </View>
+
+            {/* Stats row */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+                <StatPill
+                    icon="cash-outline"
+                    label="Monthly Fee"
+                    value={`₹${item.monthlyFee}`}
+                    iconColor={Colors.textSecondary}
+                    bgColor={Colors.cardBorderLight}
+                    valueColor={Colors.textPrimary}
+                />
+                <StatPill
+                    icon="checkmark-circle-outline"
+                    label="Paid"
+                    value={`₹${item.paid}`}
+                    iconColor={Colors.success}
+                    bgColor={Colors.successLight}
+                    valueColor={Colors.success}
+                />
+                <StatPill
+                    icon="alert-circle-outline"
+                    label="Pending"
+                    value={`₹${item.pending}`}
+                    iconColor={Colors.danger}
+                    bgColor={Colors.dangerLight}
+                    valueColor={Colors.danger}
+                />
+            </View>
+        </View>
+    );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function DefaultersScreen() {
     const [students, setStudents] = useState<any[]>([]);
     const [selectedClass, setSelectedClass] = useState("ALL");
@@ -45,7 +199,12 @@ export default function DefaultersScreen() {
     useEffect(() => { fetchData(); }, [selectedClass]);
 
     if (loading) {
-        return <LoadingState title="Loading Defaulters" subtitle="Fetching current month pending students…" />;
+        return (
+            <LoadingState
+                title="Loading Defaulters"
+                subtitle="Fetching current month pending students…"
+            />
+        );
     }
 
     if (error) {
@@ -64,33 +223,62 @@ export default function DefaultersScreen() {
                 data={students}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 32 }}
                 ListHeaderComponent={
                     <>
-                        <View className="mb-5">
-                            <Text className="text-3xl font-black text-gray-900">Defaulters</Text>
-                            <Text className="mt-1 text-gray-500">Current month pending students</Text>
-                        </View>
-
-                        <AppSelect
-                            value={selectedClass}
-                            options={classes.map(
-                                (item) => ({
-                                    label: item,
-                                    value: item,
-                                })
-                            )}
-                            onChange={(value) =>
-                                setSelectedClass(
-                                    String(value)
-                                )
-                            }
+                        {/* Page Header */}
+                        <PageHeader
+                            title="Defaulters"
+                            subtitle="Current month fee pending"
+                            showBack
                         />
 
+                        {/* Class Filter */}
+                        <View style={{ marginBottom: 16 }}>
+                            <AppSelect
+                                value={selectedClass}
+                                options={classes.map((item) => ({
+                                    label: item,
+                                    value: item,
+                                }))}
+                                onChange={(value) =>
+                                    setSelectedClass(String(value))
+                                }
+                            />
+                        </View>
+
+                        {/* Alert banner */}
                         {students.length > 0 && (
-                            <View className="mb-5 flex-row items-center rounded-2xl border border-red-200 bg-red-50 p-4">
-                                <Ionicons name="warning-outline" size={22} color="#ef4444" style={{ marginRight: 10 }} />
-                                <Text className="flex-1 text-sm text-red-600">
-                                    These students have outstanding fee dues. Please follow up.
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    backgroundColor: Colors.dangerLight,
+                                    borderRadius: 12,
+                                    borderWidth: 1,
+                                    borderColor: Colors.dangerBorder,
+                                    padding: 14,
+                                    marginBottom: 16,
+                                }}
+                            >
+                                <Ionicons
+                                    name="warning-outline"
+                                    size={20}
+                                    color={Colors.danger}
+                                    style={{ marginRight: 10 }}
+                                />
+                                <Text
+                                    style={{
+                                        flex: 1,
+                                        fontSize: 13,
+                                        color: Colors.danger,
+                                        lineHeight: 18,
+                                        fontWeight: "500",
+                                    }}
+                                >
+                                    {students.length} student
+                                    {students.length !== 1 ? "s" : ""} have
+                                    outstanding fee dues. Please follow up.
                                 </Text>
                             </View>
                         )}
@@ -101,43 +289,11 @@ export default function DefaultersScreen() {
                         title="No Defaulters"
                         subtitle="All students have cleared their current month dues."
                         icon="checkmark-circle-outline"
-                        iconColor="#059669"
-                        iconBgColor="#D1FAE5"
+                        iconColor={Colors.success}
+                        iconBgColor={Colors.successLight}
                     />
                 }
-                renderItem={({ item }) => (
-                    <View
-                        className="mb-4 rounded-3xl border border-red-100 bg-white p-5"
-                        style={{ shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}
-                    >
-                        <View className="mb-3 flex-row items-center justify-between">
-                            <View className="flex-1">
-                                <Text className="text-lg font-bold text-gray-900">{item.full_name}</Text>
-                                <Text className="mt-0.5 text-sm text-gray-500">Class: {item.class_name}</Text>
-                            </View>
-                            <View className="rounded-full bg-red-100 px-3 py-1">
-                                <Text className="text-xs font-bold text-red-600">DUE</Text>
-                            </View>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <View className="flex-1 items-center rounded-xl bg-gray-50 p-3">
-                                <Ionicons name="cash-outline" size={16} color="#6B7280" />
-                                <Text className="mt-1 text-xs text-gray-400">Monthly Fee</Text>
-                                <Text className="mt-0.5 font-bold text-gray-900">₹{item.monthlyFee}</Text>
-                            </View>
-                            <View className="mx-2 flex-1 items-center rounded-xl bg-emerald-50 p-3">
-                                <Ionicons name="checkmark-circle-outline" size={16} color="#059669" />
-                                <Text className="mt-1 text-xs text-gray-400">Paid</Text>
-                                <Text className="mt-0.5 font-bold text-emerald-600">₹{item.paid}</Text>
-                            </View>
-                            <View className="flex-1 items-center rounded-xl bg-red-50 p-3">
-                                <Ionicons name="alert-circle-outline" size={16} color="#ef4444" />
-                                <Text className="mt-1 text-xs text-gray-400">Pending</Text>
-                                <Text className="mt-0.5 font-bold text-red-600">₹{item.pending}</Text>
-                            </View>
-                        </View>
-                    </View>
-                )}
+                renderItem={({ item }) => <DefaulterCard item={item} />}
             />
         </ScreenWrapper>
     );

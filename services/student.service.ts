@@ -114,14 +114,47 @@ export const createStudent =
         email: string;
         password: string;
     }) => {
-        // STEP 0: Save the current teacher/admin session.
+        // ── PRE-FLIGHT: check uniqueness BEFORE touching Supabase Auth ──────────
+        // This prevents orphaned auth users when a DB constraint fails later.
+
+        // 1. Check admission number
+        const { data: existingAdmission } = await supabase
+            .from("students")
+            .select("id")
+            .eq("admission_no", admission_no.trim())
+            .maybeSingle();
+
+        if (existingAdmission) {
+            return {
+                error: {
+                    message: "admission number already exists",
+                } as any,
+            };
+        }
+
+        // 2. Check email
+        const { data: existingEmail } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", email.trim().toLowerCase())
+            .maybeSingle();
+
+        if (existingEmail) {
+            return {
+                error: {
+                    message: "already exists",
+                } as any,
+            };
+        }
+
+        // ── STEP 0: Save the current teacher/admin session. ─────────────────────
         // supabase.auth.signUp() auto-signs-in the new student,
         // which would replace the current session and break all
         // subsequent DB inserts (RLS would apply to the student).
         const { data: { session: currentSession } } =
             await supabase.auth.getSession();
 
-        // STEP 1: Create auth user
+        // ── STEP 1: Create auth user ─────────────────────────────────────────────
         const {
             data: authData,
             error: authError,
@@ -133,7 +166,7 @@ export const createStudent =
 
         const authUser = authData.user;
 
-        // STEP 1.5: Restore the teacher/admin session immediately
+        // ── STEP 1.5: Restore the teacher/admin session immediately ─────────────
         // so all DB inserts below run with teacher/admin permissions.
         if (currentSession?.access_token && currentSession?.refresh_token) {
             await supabase.auth.setSession({
@@ -142,7 +175,7 @@ export const createStudent =
             });
         }
 
-        // STEP 2: Create student record
+        // ── STEP 2: Create student record ────────────────────────────────────────
         const {
             data: studentData,
             error: studentError,
@@ -164,7 +197,7 @@ export const createStudent =
             return { error: studentError };
         }
 
-        // STEP 3: Create fee assignment
+        // ── STEP 3: Create fee assignment ────────────────────────────────────────
         const { error: feeError } = await supabase
             .from("student_fee_assignments")
             .insert([
@@ -185,7 +218,7 @@ export const createStudent =
             return { error: feeError };
         }
 
-        // STEP 4: Create users profile (needed for login lookup)
+        // ── STEP 4: Create users profile (needed for login lookup) ───────────────
         const { error: userError } = await supabase
             .from("users")
             .insert([{
@@ -359,7 +392,9 @@ export const getTeacherStudents =
           monthly_fee
         ),
         fee_transactions (
-          amount
+          amount,
+          payment_month,
+          payment_year
         )
       `)
             .eq(

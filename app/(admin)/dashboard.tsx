@@ -1,61 +1,68 @@
-import {
-    Pressable,
-    ScrollView,
-    Text,
-    View,
-} from "react-native";
-
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
+import { ScrollView, Text, View } from "react-native";
 
-import ScreenWrapper from "@/components/common/ScreenWrapper";
+import AppButton from "@/components/common/AppButton";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import StatCard from "../../components/dashboard/StatCard";
-import { useAppDispatch, useAppSelector } from "../../hooks/redux";
-import { supabase } from "../../lib/supabase";
-import { getDashboardStats } from "../../services/dashboard.service";
-import { clearUser } from "../../store/authSlice";
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Colors, Shadows } from "@/constants/colors";
+import { useAppDispatch, useAppSelector } from "@/hooks/redux";
+import { supabase } from "@/lib/supabase";
+import { getDashboardStats } from "@/services/dashboard.service";
+import { clearUser } from "@/store/authSlice";
 
-
-interface Props {
-    title: string;
-
-    subtitle: string;
-
-    icon: React.ReactNode;
-
-    bgColor: string;
-
-    onPress: () => void;
-}
-
-function DashboardActionCard({
+function StatTile({
     title,
-    subtitle,
+    value,
     icon,
-    bgColor,
-    onPress,
-}: Props) {
+    color,
+    backgroundColor,
+}: {
+    title: string;
+    value: string | number;
+    icon: keyof typeof Ionicons.glyphMap;
+    color: string;
+    backgroundColor: string;
+}) {
     return (
-        <Pressable
-            onPress={onPress}
-            className={`mb-4 w-[48%] rounded-3xl p-5 ${bgColor}`}
+        <View
+            style={[
+                {
+                    width: "48%",
+                    marginBottom: 12,
+                    borderRadius: 16,
+                    backgroundColor: Colors.card,
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorderLight,
+                    padding: 16,
+                    minHeight: 128,
+                },
+                Shadows.card,
+            ]}
         >
-            <View className="mb-4 h-14 w-14 items-center justify-center rounded-2xl bg-white/20">
-                {icon}
+            <View
+                style={{
+                    height: 44,
+                    width: 44,
+                    borderRadius: 14,
+                    backgroundColor,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 14,
+                }}
+            >
+                <Ionicons name={icon} size={22} color={color} />
             </View>
-
-            <Text className="text-lg font-bold text-slate-900">
+            <Text numberOfLines={1} style={{ color: Colors.textPrimary, fontSize: 24, fontWeight: "800" }}>
+                {value}
+            </Text>
+            <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600", marginTop: 4 }}>
                 {title}
             </Text>
-
-            <Text className="mt-1 text-xs leading-5 text-slate-700">
-                {subtitle}
-            </Text>
-        </Pressable>
+        </View>
     );
 }
 
@@ -89,7 +96,7 @@ export default function DashboardScreen() {
     useEffect(() => { fetchStats(); }, []);
 
     if (loading) {
-        return <LoadingState title="Loading Dashboard" subtitle="Fetching your stats…" />;
+        return <LoadingState title="Loading Dashboard" subtitle="Fetching your stats..." />;
     }
 
     if (error) {
@@ -104,174 +111,88 @@ export default function DashboardScreen() {
 
     return (
         <ScreenWrapper>
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-            >
-                {/* ── Header ── */}
-                <View className="mb-6 flex-row items-center justify-between">
-                    <View>
-                        <Text className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                <View style={{ marginBottom: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: Colors.textSecondary, textTransform: "uppercase", letterSpacing: 1 }}>
                             Admin Panel
                         </Text>
-                        <Text className="mt-1 text-2xl font-bold text-gray-900">
+                        <Text numberOfLines={1} style={{ marginTop: 4, fontSize: 24, fontWeight: "800", color: Colors.textPrimary }}>
                             {user?.name ?? "Admin"}
                         </Text>
                     </View>
-                    <Pressable
+                    <AppButton
+                        label="Sign Out"
                         onPress={() => setShowLogoutDialog(true)}
-                        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                        className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
-                    >
-                        <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
-                        <Text className="text-sm font-semibold text-red-500">Sign Out</Text>
-                    </Pressable>
+                        variant="danger"
+                        size="sm"
+                        iconLeft="log-out-outline"
+                    />
                 </View>
 
-                {/* Stats Cards */}
-                {/* Stats */}
-                <View className="flex-row flex-wrap justify-between">
-                    <StatCard
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 16 }}>
+                    <StatTile
                         title="Students"
-                        value={
-                            stats?.totalStudents ||
-                            0
-                        }
-                        bgColor="bg-blue-100"
-                        valueColor="text-blue-900"
-                        icon={
-                            <Ionicons
-                                name="school-outline"
-                                size={28}
-                                color="#2563EB"
-                            />
-                        }
+                        value={stats?.totalStudents || 0}
+                        color={Colors.primary}
+                        backgroundColor={Colors.primaryLight}
+                        icon="school-outline"
                     />
-
-                    <StatCard
+                    <StatTile
                         title="Teachers"
-                        value={
-                            stats?.totalTeachers ||
-                            0
-                        }
-                        bgColor="bg-green-100"
-                        valueColor="text-green-900"
-                        icon={
-                            <Ionicons
-                                name="people-outline"
-                                size={28}
-                                color="#16A34A"
-                            />
-                        }
+                        value={stats?.totalTeachers || 0}
+                        color={Colors.success}
+                        backgroundColor={Colors.successLight}
+                        icon="people-outline"
                     />
-
-                    <StatCard
+                    <StatTile
                         title="Collection"
-                        value={`₹${stats?.monthlyCollection || 0
-                            }`}
-                        bgColor="bg-purple-100"
-                        valueColor="text-purple-900"
-                        icon={
-                            <Ionicons
-                                name="card-outline"
-                                size={28}
-                                color="#7C3AED"
-                            />
-                        }
+                        value={`Rs ${stats?.monthlyCollection || 0}`}
+                        color={Colors.info}
+                        backgroundColor={Colors.infoLight}
+                        icon="card-outline"
                     />
-
-                    <StatCard
+                    <StatTile
                         title="Pending"
-                        value={`₹${stats?.pendingAmount || 0
-                            }`}
-                        bgColor="bg-red-100"
-                        valueColor="text-red-900"
-                        icon={
-                            <Ionicons
-                                name="warning-outline"
-                                size={28}
-                                color="#DC2626"
-                            />
-                        }
+                        value={`Rs ${stats?.pendingAmount || 0}`}
+                        color={Colors.danger}
+                        backgroundColor={Colors.dangerLight}
+                        icon="warning-outline"
                     />
                 </View>
 
-                {/* Quick Actions */}
-                <View className="mt-6">
-                    <Text className="mb-4 text-2xl font-black text-slate-900">
+                <View style={{ marginBottom: 32 }}>
+                    <Text style={{ marginBottom: 16, fontSize: 16, fontWeight: "800", color: Colors.textPrimary }}>
                         Quick Actions
                     </Text>
-
-                    <View className="flex-row flex-wrap justify-between">
-                        <DashboardActionCard
-                            title="Students"
-                            subtitle="Manage students"
-                            bgColor="bg-blue-100"
-                            icon={
-                                <Ionicons
-                                    name="school-outline"
-                                    size={26}
-                                    color="#2563EB"
-                                />
-                            }
-                            onPress={() =>
-                                router.push(
-                                    "/students"
-                                )
-                            }
+                    <View style={{ gap: 12 }}>
+                        <AppButton
+                            label="Manage Students"
+                            onPress={() => router.push("/(admin)/students")}
+                            variant="primary"
+                            fullWidth
+                            iconLeft="school-outline"
                         />
-
-                        <DashboardActionCard
-                            title="Teachers"
-                            subtitle="Manage teachers"
-                            bgColor="bg-green-100"
-                            icon={
-                                <Ionicons
-                                    name="people-outline"
-                                    size={26}
-                                    color="#16A34A"
-                                />
-                            }
-                            onPress={() =>
-                                router.push(
-                                    "/teachers/create"
-                                )
-                            }
+                        <AppButton
+                            label="Manage Teachers"
+                            onPress={() => router.push("/(admin)/teachers")}
+                            variant="primary"
+                            fullWidth
+                            iconLeft="people-outline"
                         />
-
-                        <DashboardActionCard
-                            title="Reports"
-                            subtitle="Analytics"
-                            bgColor="bg-orange-100"
-                            icon={
-                                <Ionicons
-                                    name="analytics-outline"
-                                    size={26}
-                                    color="#EA580C"
-                                />
-                            }
-                            onPress={() =>
-                                router.push(
-                                    "/reports"
-                                )
-                            }
+                        <AppButton
+                            label="View Reports"
+                            onPress={() => router.push("/(admin)/reports")}
+                            variant="secondary"
+                            fullWidth
+                            iconLeft="document-outline"
                         />
-
-                        <DashboardActionCard
-                            title="Defaulters"
-                            subtitle="Pending students"
-                            bgColor="bg-red-100"
-                            icon={
-                                <Ionicons
-                                    name="warning-outline"
-                                    size={26}
-                                    color="#DC2626"
-                                />
-                            }
-                            onPress={() =>
-                                router.push(
-                                    "/defaulters"
-                                )
-                            }
+                        <AppButton
+                            label="View Defaulters"
+                            onPress={() => router.push("/(admin)/defaulters")}
+                            variant="secondary"
+                            fullWidth
+                            iconLeft="warning-outline"
                         />
                     </View>
                 </View>
@@ -281,7 +202,7 @@ export default function DashboardScreen() {
                 visible={showLogoutDialog}
                 variant="warning"
                 title="Sign Out?"
-                subtitle="You'll be returned to the login screen. Any unsaved changes will be lost."
+                subtitle="You'll be returned to the login screen."
                 confirmLabel="Sign Out"
                 cancelLabel="Stay"
                 onConfirm={handleLogout}

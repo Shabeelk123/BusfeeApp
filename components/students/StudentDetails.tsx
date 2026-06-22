@@ -1,36 +1,127 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
-    SafeAreaView,
     ScrollView,
     Text,
     View,
 } from "react-native";
-import ConfirmDialog from "../common/ConfirmDialog";
-import { useToast } from "../common/ToastContext";
 
-import { useFocusEffect } from "@react-navigation/native";
-import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
-
+import { Colors, Shadows } from "../../constants/colors";
 import { deleteStudent, getStudentById } from "../../services/student.service";
+import { splitClassName } from "../../utils/className";
 import { calculateFeeBalance } from "../../utils/fee";
 import { generateMonthlyFeeStatus } from "../../utils/monthlyFeeStatus";
+import AppButton from "../common/AppButton";
+import ConfirmDialog from "../common/ConfirmDialog";
+import PageHeader from "../common/PageHeader";
+import ScreenWrapper from "../common/ScreenWrapper";
+import { useToast } from "../common/ToastContext";
 
 interface Props {
-    role:
-    | "ADMIN"
-    | "TEACHER";
-
-    baseRoute:
-    | "/(admin)"
-    | "/(teacher)";
+    role: "ADMIN" | "TEACHER";
+    baseRoute: "/(admin)" | "/(teacher)";
 }
 
 const MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+function SummaryCard({
+    label,
+    value,
+    tone = "primary",
+}: {
+    label: string;
+    value: string;
+    tone?: "primary" | "success" | "danger";
+}) {
+    const toneColor =
+        tone === "success" ? Colors.success : tone === "danger" ? Colors.danger : Colors.primary;
+    const toneBg =
+        tone === "success" ? Colors.successLight : tone === "danger" ? Colors.dangerLight : Colors.primaryLight;
+
+    return (
+        <View
+            style={[
+                {
+                    flex: 1,
+                    borderRadius: 16,
+                    backgroundColor: Colors.card,
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorderLight,
+                    padding: 14,
+                    minHeight: 82,
+                },
+                Shadows.card,
+            ]}
+        >
+            <View
+                style={{
+                    alignSelf: "flex-start",
+                    borderRadius: 999,
+                    backgroundColor: toneBg,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    marginBottom: 8,
+                }}
+            >
+                <Text style={{ color: toneColor, fontSize: 10, fontWeight: "700" }}>{label}</Text>
+            </View>
+            <Text numberOfLines={1} style={{ color: Colors.textPrimary, fontSize: 18, fontWeight: "800" }}>
+                {value}
+            </Text>
+        </View>
+    );
+}
+
+function InfoRow({
+    icon,
+    label,
+    value,
+    isLast,
+}: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    value?: string | number | null;
+    isLast?: boolean;
+}) {
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 13,
+                borderBottomWidth: isLast ? 0 : 1,
+                borderBottomColor: Colors.cardBorderLight,
+            }}
+        >
+            <View
+                style={{
+                    height: 36,
+                    width: 36,
+                    borderRadius: 12,
+                    backgroundColor: Colors.primaryLight,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                }}
+            >
+                <Ionicons name={icon} size={18} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: "600" }}>{label}</Text>
+                <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "600", marginTop: 2 }}>
+                    {value || "-"}
+                </Text>
+            </View>
+        </View>
+    );
+}
 
 export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     const toast = useToast();
@@ -40,7 +131,7 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     const [activeTab, setActiveTab] = useState<"info" | "monthly" | "transactions">("info");
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-    const fetchStudent = async () => {
+    const fetchStudent = useCallback(async () => {
         try {
             setLoading(true);
             const { data } = await getStudentById(id as string);
@@ -50,9 +141,9 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
 
-    useFocusEffect(useCallback(() => { fetchStudent(); }, []));
+    useFocusEffect(useCallback(() => { fetchStudent(); }, [fetchStudent]));
 
     const handleDelete = async () => {
         const { error } = await deleteStudent(student.id);
@@ -65,22 +156,30 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
 
     if (loading) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-slate-900">
-                <ActivityIndicator size="large" color="#6366f1" />
-                <Text className="mt-3 text-sm text-slate-400">Loading profile...</Text>
-            </SafeAreaView>
+            <ScreenWrapper>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 14 }}>
+                        Loading profile...
+                    </Text>
+                </View>
+            </ScreenWrapper>
         );
     }
 
     if (!student) {
         return (
-            <SafeAreaView className="flex-1 items-center justify-center bg-slate-900">
-                <Text className="text-5xl">❓</Text>
-                <Text className="mt-4 text-lg text-slate-400">Student not found</Text>
-                <Pressable onPress={() => router.back()} className="mt-4">
-                    <Text className="text-indigo-400">← Go back</Text>
-                </Pressable>
-            </SafeAreaView>
+            <ScreenWrapper>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="alert-circle-outline" size={44} color={Colors.textMuted} />
+                    <Text style={{ marginTop: 14, fontSize: 18, fontWeight: "700", color: Colors.textPrimary }}>
+                        Student not found
+                    </Text>
+                    <View style={{ marginTop: 16 }}>
+                        <AppButton label="Go Back" variant="secondary" onPress={() => router.back()} />
+                    </View>
+                </View>
+            </ScreenWrapper>
         );
     }
 
@@ -95,208 +194,326 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
         joinDate: student.created_at,
         transactions: student?.fee_transactions || [],
     });
+    const classParts = splitClassName(student.class_name);
+    const displayClass = classParts.classLevel;
+    const dueTone = feeSummary.dueAmount > 0 ? "danger" : "success";
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-900">
+        <ScreenWrapper>
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 60 }}
             >
-                {/* Header */}
-                <View className="px-5 pt-6">
-                    <Pressable onPress={() => router.back()} className="mb-4 flex-row items-center">
-                        <Text className="text-indigo-400">← Back</Text>
-                    </Pressable>
+                <PageHeader
+                    title={student.full_name}
+                    subtitle={`Admission #${student.admission_no}`}
+                    showBack
+                />
 
-                    {/* Profile Card */}
-                    <View className="mb-5 rounded-2xl bg-indigo-600 p-5">
-                        <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-white/20">
-                            <Text className="text-3xl">🎓</Text>
+                <View
+                    style={[
+                        {
+                            borderRadius: 18,
+                            backgroundColor: Colors.card,
+                            borderWidth: 1,
+                            borderColor: Colors.cardBorderLight,
+                            padding: 18,
+                            marginBottom: 16,
+                        },
+                        Shadows.card,
+                    ]}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View
+                            style={{
+                                height: 58,
+                                width: 58,
+                                borderRadius: 18,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: Colors.primaryLight,
+                                marginRight: 14,
+                            }}
+                        >
+                            <Ionicons name="school-outline" size={28} color={Colors.primary} />
                         </View>
-                        <Text className="text-2xl font-bold text-white">{student.full_name}</Text>
-                        <Text className="mt-1 text-sm text-indigo-200">#{student.admission_no}</Text>
-                        <View className="mt-3 flex-row gap-3">
-                            <View className="rounded-lg bg-white/20 px-3 py-1">
-                                <Text className="text-xs text-white">{student.class_name || "No Class"}</Text>
-                            </View>
-                            <View className="rounded-lg bg-white/20 px-3 py-1">
-                                <Text className="text-xs text-white">🚌 {student.bus_route || "No Route"}</Text>
-                            </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: "700" }}>
+                                Student Profile
+                            </Text>
+                            <Text
+                                numberOfLines={1}
+                                style={{ color: Colors.textPrimary, fontSize: 20, fontWeight: "800", marginTop: 2 }}
+                            >
+                                {student.full_name}
+                            </Text>
                         </View>
                     </View>
 
-                    {/* Fee Summary Row */}
-                    <View className="mb-5 flex-row gap-3">
-                        <View className="flex-1 rounded-xl bg-slate-800 p-4">
-                            <Text className="text-xs text-slate-400">Monthly Fee</Text>
-                            <Text className="mt-1 text-xl font-bold text-indigo-400">₹{monthlyFee}</Text>
-                        </View>
-                        <View className="flex-1 rounded-xl bg-slate-800 p-4">
-                            <Text className="text-xs text-slate-400">Total Paid</Text>
-                            <Text className="mt-1 text-xl font-bold text-green-400">₹{feeSummary.totalPaid}</Text>
-                        </View>
-                        <View className={`flex-1 rounded-xl p-4 ${feeSummary.dueAmount > 0 ? "bg-red-950" : "bg-green-950"}`}>
-                            <Text className="text-xs text-slate-400">
-                                {feeSummary.dueAmount > 0 ? "Due" : "Advance"}
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                        <View
+                            style={{
+                                flex: 1,
+                                borderRadius: 12,
+                                backgroundColor: Colors.inputBg,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                            }}
+                        >
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Class</Text>
+                            <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
+                                {classParts.classLevel || "-"}
                             </Text>
-                            <Text className={`mt-1 text-xl font-bold ${feeSummary.dueAmount > 0 ? "text-red-400" : "text-green-400"}`}>
-                                ₹{feeSummary.dueAmount > 0 ? feeSummary.dueAmount : feeSummary.advanceAmount}
+                        </View>
+                        <View
+                            style={{
+                                flex: 1,
+                                borderRadius: 12,
+                                backgroundColor: Colors.inputBg,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                            }}
+                        >
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Division</Text>
+                            <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
+                                {classParts.division || "-"}
+                            </Text>
+                        </View>
+                        <View
+                            style={{
+                                flex: 1,
+                                borderRadius: 12,
+                                backgroundColor: Colors.inputBg,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                            }}
+                        >
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Route</Text>
+                            <Text numberOfLines={1} style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
+                                {student.bus_route || "-"}
                             </Text>
                         </View>
                     </View>
+                </View>
 
-                    {/* Action Buttons */}
-                    <Pressable
-                        onPress={() =>
-                            router.push({
-                                pathname:
-                                    `${baseRoute}/students/add-payment` as any,
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                    <SummaryCard label="Monthly" value={`Rs ${monthlyFee}`} />
+                    <SummaryCard label="Paid" value={`Rs ${feeSummary.totalPaid}`} tone="success" />
+                    <SummaryCard
+                        label={feeSummary.dueAmount > 0 ? "Due" : "Advance"}
+                        value={`Rs ${feeSummary.dueAmount > 0 ? feeSummary.dueAmount : feeSummary.advanceAmount}`}
+                        tone={dueTone}
+                    />
+                </View>
 
-                                params: {
-                                    studentId:
-                                        student.id,
-                                },
-                            })
-                        }
-                        className="mb-4 items-center rounded-xl bg-green-600 py-4"
-                    >
-                        <Text className="font-semibold text-white">
-                            Add Payment
-                        </Text>
-                    </Pressable>
+                <AppButton
+                    label="Add Payment"
+                    iconLeft="add-circle-outline"
+                    fullWidth
+                    onPress={() =>
+                        router.push({
+                            pathname: `${baseRoute}/students/add-payment` as any,
+                            params: { studentId: student.id },
+                        })
+                    }
+                />
 
-                    {role === "ADMIN" && (
-                        <View className="mb-5 flex-row gap-3">
-                            <Pressable
+                {role === "ADMIN" && (
+                    <View style={{ flexDirection: "row", gap: 12, marginTop: 12, marginBottom: 18 }}>
+                        <View style={{ flex: 1 }}>
+                            <AppButton
+                                label="Edit"
+                                variant="secondary"
+                                iconLeft="create-outline"
+                                fullWidth
                                 onPress={() =>
                                     router.push({
                                         pathname: "/(admin)/students/edit",
                                         params: { id: student.id },
                                     })
                                 }
-                                className="flex-1 items-center rounded-xl bg-slate-700 py-3 active:opacity-80"
-                            >
-                                <Text className="font-semibold text-blue-400">✏️ Edit</Text>
-                            </Pressable>
-                            <Pressable
-                                onPress={() => setShowDeleteDialog(true)}
-                                className="flex-1 items-center rounded-xl bg-red-950 py-3 active:opacity-80"
-                            >
-                                <Text className="font-semibold text-red-400">🗑 Delete</Text>
-                            </Pressable>
+                            />
                         </View>
-                    )}
+                        <View style={{ flex: 1 }}>
+                            <AppButton
+                                label="Delete"
+                                variant="danger"
+                                iconLeft="trash-outline"
+                                fullWidth
+                                onPress={() => setShowDeleteDialog(true)}
+                            />
+                        </View>
+                    </View>
+                )}
 
-                    {/* Tabs */}
-                    <View className="mb-5 flex-row rounded-xl bg-slate-800 p-1">
-                        {(["info", "monthly", "transactions"] as const).map((tab) => (
+                <View
+                    style={{
+                        flexDirection: "row",
+                        borderRadius: 14,
+                        backgroundColor: Colors.card,
+                        borderWidth: 1,
+                        borderColor: Colors.cardBorderLight,
+                        padding: 4,
+                        marginTop: role === "ADMIN" ? 0 : 18,
+                        marginBottom: 16,
+                    }}
+                >
+                    {(["info", "monthly", "transactions"] as const).map((tab) => {
+                        const isActive = activeTab === tab;
+                        return (
                             <Pressable
                                 key={tab}
                                 onPress={() => setActiveTab(tab)}
-                                className={`flex-1 items-center rounded-lg py-2.5 ${activeTab === tab ? "bg-indigo-600" : ""}`}
+                                accessibilityRole="button"
+                                style={({ pressed }) => ({
+                                    flex: 1,
+                                    alignItems: "center",
+                                    borderRadius: 10,
+                                    paddingVertical: 10,
+                                    backgroundColor: isActive ? Colors.primary : "transparent",
+                                    opacity: pressed ? 0.75 : 1,
+                                })}
                             >
-                                <Text className={`text-xs font-semibold capitalize ${activeTab === tab ? "text-white" : "text-slate-400"}`}>
+                                <Text
+                                    style={{
+                                        color: isActive ? Colors.textOnDark : Colors.textSecondary,
+                                        fontSize: 12,
+                                        fontWeight: "800",
+                                    }}
+                                >
                                     {tab === "info" ? "Info" : tab === "monthly" ? "Monthly" : "Payments"}
                                 </Text>
                             </Pressable>
-                        ))}
-                    </View>
+                        );
+                    })}
                 </View>
 
-                {/* Tab Content */}
-                <View className="px-5">
-                    {/* Info Tab */}
-                    {activeTab === "info" && (
-                        <View className="rounded-2xl bg-slate-800 p-5">
-                            {[
-                                { label: "Parent Name", value: student.parent_name, emoji: "👨‍👩‍👧" },
-                                { label: "Phone", value: student.phone, emoji: "📞" },
-                                { label: "Class", value: student.class_name, emoji: "📚" },
-                                { label: "Bus Route", value: student.bus_route, emoji: "🚌" },
-                                { label: "Expected Total", value: `₹${feeSummary.expectedAmount}`, emoji: "💰" },
-                                { label: "Months Enrolled", value: `${feeSummary.totalMonths} months`, emoji: "📅" },
-                            ].map((item, i) => (
-                                <View key={i} className={`flex-row items-center py-3 ${i < 5 ? "border-b border-slate-700" : ""}`}>
-                                    <Text className="mr-3 text-base">{item.emoji}</Text>
-                                    <View className="flex-1">
-                                        <Text className="text-xs text-slate-500">{item.label}</Text>
-                                        <Text className="mt-0.5 text-sm text-slate-200">{item.value || "—"}</Text>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
-                    )}
+                {activeTab === "info" && (
+                    <View
+                        style={[
+                            {
+                                borderRadius: 16,
+                                backgroundColor: Colors.card,
+                                borderWidth: 1,
+                                borderColor: Colors.cardBorderLight,
+                                paddingHorizontal: 14,
+                            },
+                            Shadows.card,
+                        ]}
+                    >
+                        <InfoRow icon="people-outline" label="Parent Name" value={student.parent_name} />
+                        <InfoRow icon="call-outline" label="Phone" value={student.phone} />
+                        <InfoRow icon="book-outline" label="Class" value={displayClass} />
+                        <InfoRow icon="grid-outline" label="Division" value={classParts.division} />
+                        <InfoRow icon="bus-outline" label="Bus Route" value={student.bus_route} />
+                        <InfoRow icon="cash-outline" label="Expected Total" value={`Rs ${feeSummary.expectedAmount}`} />
+                        <InfoRow
+                            icon="calendar-outline"
+                            label="Months Enrolled"
+                            value={`${feeSummary.totalMonths} months`}
+                            isLast
+                        />
+                    </View>
+                )}
 
-                    {/* Monthly Status Tab */}
-                    {activeTab === "monthly" && (
-                        <View>
-                            {monthlyStatus.months.map((item, index) => (
+                {activeTab === "monthly" && (
+                    <View>
+                        {monthlyStatus.months.map((item, index) => {
+                            const isPaid = item.status === "PAID";
+                            const isPartial = item.status === "PARTIAL";
+                            const color = isPaid ? Colors.success : isPartial ? Colors.warning : Colors.danger;
+                            const bg = isPaid ? Colors.successLight : isPartial ? Colors.warningLight : Colors.dangerLight;
+                            const border = isPaid ? Colors.successBorder : isPartial ? Colors.warningBorder : Colors.dangerBorder;
+
+                            return (
                                 <View
                                     key={index}
-                                    className={`mb-3 flex-row items-center rounded-xl p-4 ${item.status === "PAID"
-                                        ? "bg-green-950 border border-green-800"
-                                        : item.status === "PARTIAL"
-                                            ? "bg-orange-950 border border-orange-800"
-                                            : "bg-red-950 border border-red-900"
-                                        }`}
+                                    style={{
+                                        marginBottom: 10,
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        borderRadius: 14,
+                                        borderWidth: 1,
+                                        borderColor: border,
+                                        backgroundColor: Colors.card,
+                                        padding: 14,
+                                    }}
                                 >
-                                    <View className="flex-1">
-                                        <Text className="font-bold text-white">
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: Colors.textPrimary, fontSize: 15, fontWeight: "800" }}>
                                             {MONTH_NAMES[item.month - 1]} {item.year}
                                         </Text>
-                                        <Text className="mt-1 text-xs text-slate-400">
-                                            Paid ₹{item.paid} / ₹{item.expected}
+                                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                                            Paid Rs {item.paid} / Rs {item.expected}
                                         </Text>
                                     </View>
-                                    <View className={`rounded-full px-3 py-1 ${item.status === "PAID"
-                                        ? "bg-green-700"
-                                        : item.status === "PARTIAL"
-                                            ? "bg-orange-700"
-                                            : "bg-red-700"
-                                        }`}>
-                                        <Text className="text-xs font-bold text-white">{item.status}</Text>
+                                    <View style={{ borderRadius: 999, backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 5 }}>
+                                        <Text style={{ color, fontSize: 11, fontWeight: "800" }}>{item.status}</Text>
                                     </View>
                                 </View>
-                            ))}
-                            {monthlyStatus.advanceAmount > 0 && (
-                                <View className="mt-2 rounded-xl bg-indigo-950 border border-indigo-700 p-4">
-                                    <Text className="font-bold text-indigo-400">
-                                        🎉 Advance Balance: ₹{monthlyStatus.advanceAmount}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                    )}
+                            );
+                        })}
+                        {monthlyStatus.advanceAmount > 0 && (
+                            <View
+                                style={{
+                                    borderRadius: 14,
+                                    backgroundColor: Colors.primaryLight,
+                                    borderWidth: 1,
+                                    borderColor: Colors.primaryBorder,
+                                    padding: 14,
+                                }}
+                            >
+                                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: "800" }}>
+                                    Advance Balance: Rs {monthlyStatus.advanceAmount}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
 
-                    {/* Transactions Tab */}
-                    {activeTab === "transactions" && (
-                        <View>
-                            {!student?.fee_transactions?.length ? (
-                                <View className="mt-10 items-center">
-                                    <Text className="text-4xl">💳</Text>
-                                    <Text className="mt-4 text-slate-400">No transactions yet</Text>
-                                </View>
-                            ) : (
-                                student.fee_transactions.map((item: any) => (
-                                    <View
-                                        key={item.id}
-                                        className="mb-3 rounded-xl bg-slate-800 p-4"
-                                    >
-                                        <View className="flex-row items-center justify-between">
-                                            <Text className="text-lg font-bold text-green-400">₹{item.amount}</Text>
-                                            <Text className="text-xs text-slate-500">
-                                                {MONTH_NAMES[(item.payment_month || 1) - 1]} {item.payment_year}
-                                            </Text>
-                                        </View>
-                                        {item.note ? (
-                                            <Text className="mt-1 text-xs text-slate-400">{item.note}</Text>
-                                        ) : null}
+                {activeTab === "transactions" && (
+                    <View>
+                        {!student?.fee_transactions?.length ? (
+                            <View style={{ alignItems: "center", paddingVertical: 48 }}>
+                                <Ionicons name="card-outline" size={40} color={Colors.textMuted} />
+                                <Text style={{ color: Colors.textSecondary, marginTop: 12, fontSize: 14 }}>
+                                    No transactions yet
+                                </Text>
+                            </View>
+                        ) : (
+                            student.fee_transactions.map((item: any) => (
+                                <View
+                                    key={item.id}
+                                    style={[
+                                        {
+                                            marginBottom: 10,
+                                            borderRadius: 14,
+                                            backgroundColor: Colors.card,
+                                            borderWidth: 1,
+                                            borderColor: Colors.cardBorderLight,
+                                            padding: 14,
+                                        },
+                                        Shadows.card,
+                                    ]}
+                                >
+                                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                        <Text style={{ color: Colors.success, fontSize: 18, fontWeight: "800" }}>
+                                            Rs {item.amount}
+                                        </Text>
+                                        <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+                                            {MONTH_NAMES[(item.payment_month || 1) - 1]} {item.payment_year}
+                                        </Text>
                                     </View>
-                                ))
-                            )}
-                        </View>
-                    )}
-                </View>
+                                    {item.note ? (
+                                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+                                            {item.note}
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            ))
+                        )}
+                    </View>
+                )}
             </ScrollView>
 
             <ConfirmDialog
@@ -308,6 +525,6 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                 onConfirm={handleDelete}
                 onCancel={() => setShowDeleteDialog(false)}
             />
-        </SafeAreaView>
+        </ScreenWrapper>
     );
 }

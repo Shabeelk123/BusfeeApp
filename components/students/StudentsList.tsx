@@ -15,8 +15,10 @@ interface Props {
     onEndReached?: () => void;
 
     ListFooterComponent?: React.ReactElement | null;
+
+    ListEmptyComponent?: React.ReactElement | null;
 }
-export default function StudentsList({ students, loading, onStudentPress, onEndReached, ListFooterComponent }: Props) {
+export default function StudentsList({ students, loading, onStudentPress, onEndReached, ListFooterComponent, ListEmptyComponent }: Props) {
     if (loading) {
         return <LoadingState title="Loading Students" subtitle="Fetching student records…" fullScreen={false} />;
     }
@@ -34,15 +36,17 @@ export default function StudentsList({ students, loading, onStudentPress, onEndR
             ListFooterComponent={
                 ListFooterComponent
             }
-            ListEmptyComponent={() => (
-                <EmptyState
-                    title="No Students Found"
-                    subtitle="Add a student to get started."
-                    icon="school-outline"
-                    iconColor="#6366F1"
-                    iconBgColor="#EEF2FF"
-                />
-            )}
+            ListEmptyComponent={
+                ListEmptyComponent ?? (
+                    <EmptyState
+                        title="No Students Found"
+                        subtitle="Add a student to get started."
+                        icon="school-outline"
+                        iconColor="#6366F1"
+                        iconBgColor="#EEF2FF"
+                    />
+                )
+            }
             renderItem={({ item }) => (
                 <StudentCard
                     student={item}

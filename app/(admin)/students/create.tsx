@@ -1,365 +1,488 @@
-import { useState } from "react";
-
-import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View
-} from "react-native";
-
-import { router as expoRouter } from "expo-router";
-
+import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Text, TextInput, View, Pressable } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
+import AppButton from "@/components/common/AppButton";
+import AppInput from "@/components/common/AppInput";
+import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useToast } from "@/components/common/ToastContext";
-import { createStudent } from "../../../services/student.service";
+import { Colors, Shadows } from "@/constants/colors";
+import { createStudent } from "@/services/student.service";
+import { composeClassName } from "@/utils/className";
 
-interface FieldProps {
-    label: string;
-    value: string;
-    onChangeText: (t: string) => void;
-    placeholder?: string;
-    keyboardType?: any;
-    secureTextEntry?: boolean;
-    required?: boolean;
-    autoCapitalize?: any;
-    emoji?: string;
+// ── Validation Utilities ────────────────────────────────────────────
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePhone = (phone: string): boolean => {
+  return phone.length === 0 || /^[0-9]{10}$/.test(phone.replace(/\D/g, ""));
+};
+
+const validatePassword = (password: string): boolean => {
+  return password.length >= 6;
+};
+
+// ── Types ────────────────────────────────────────────────────────────
+interface FormErrors {
+  fullName?: string;
+  admissionNo?: string;
+  parentName?: string;
+  phone?: string;
+  busRoute?: string;
+  monthlyFee?: string;
+  email?: string;
+  password?: string;
 }
 
-function Field({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType,
-    secureTextEntry,
-    required,
-    autoCapitalize,
-    emoji,
-}: FieldProps) {
-    return (
-        <View className="mb-5">
-            <Text className="mb-2 ml-1 text-sm font-semibold text-gray-700">
-                {emoji} {label}
-                {required && (
-                    <Text className="text-red-500">
-                        {" "}*
-                    </Text>
-                )}
-            </Text>
-
-            <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#9CA3AF"
-                keyboardType={keyboardType}
-                secureTextEntry={secureTextEntry}
-                autoCapitalize={
-                    autoCapitalize ??
-                    "words"
-                }
-                className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-base text-gray-900"
-            />
+// ── Section Card ─────────────────────────────────────────────────────
+function SectionCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginBottom: 10,
+        }}
+      >
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            backgroundColor: Colors.primaryLight,
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 8,
+          }}
+        >
+          <Ionicons name={icon} size={15} color={Colors.primary} />
         </View>
-    );
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: "700",
+            color: Colors.textSecondary,
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
+          {title}
+        </Text>
+      </View>
+
+      <View
+        style={[
+          {
+            backgroundColor: Colors.card,
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: Colors.cardBorderLight,
+          },
+          Shadows.card,
+        ]}
+      >
+        {children}
+      </View>
+    </View>
+  );
 }
 
+// ── Component ────────────────────────────────────────────────────────
 export default function CreateStudentScreen() {
-    const toast = useToast();
-    const [fullName, setFullName] =
-        useState("");
+  const toast = useToast();
 
-    const [
-        admissionNo,
-        setAdmissionNo,
-    ] = useState("");
+  // ── Form State ──────────────────────────────────────────
+  const [fullName, setFullName] = useState("");
+  const [admissionNo, setAdmissionNo] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [classLevel, setClassLevel] = useState("");
+  const [division, setDivision] = useState("");
+  const [busRoute, setBusRoute] = useState("");
+  const [monthlyFee, setMonthlyFee] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-    const [parentName, setParentName] =
-        useState("");
+  // ── UI State ────────────────────────────────────────────
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
 
-    const [phone, setPhone] =
-        useState("");
+  // ── Validation ──────────────────────────────────────────
+  const validateForm = useCallback((): boolean => {
+    const newErrors: FormErrors = {};
 
-    const [className, setClassName] =
-        useState("");
+    if (!fullName.trim()) {
+      newErrors.fullName = "Full name is required";
+    }
 
-    const [busRoute, setBusRoute] =
-        useState("");
+    if (!admissionNo.trim()) {
+      newErrors.admissionNo = "Admission number is required";
+    }
 
-    const [monthlyFee, setMonthlyFee] =
-        useState("");
+    if (!monthlyFee.trim()) {
+      newErrors.monthlyFee = "Monthly fee is required";
+    } else if (isNaN(Number(monthlyFee)) || Number(monthlyFee) <= 0) {
+      newErrors.monthlyFee = "Enter a valid amount";
+    }
 
-    const [email, setEmail] =
-        useState("");
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!validateEmail(email)) {
+      newErrors.email = "Enter a valid email address";
+    }
 
-    const [password, setPassword] =
-        useState("");
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (!validatePassword(password)) {
+      newErrors.password = "Minimum 6 characters required";
+    }
 
-    const [loading, setLoading] =
-        useState(false);
+    if (phone && !validatePhone(phone)) {
+      newErrors.phone = "Phone must be 10 digits";
+    }
 
-    const handleCreate =
-        async () => {
-            if (
-                !fullName ||
-                !admissionNo ||
-                !monthlyFee ||
-                !email ||
-                !password
-            ) {
-                toast.warning(
-                    "Missing Fields",
-                    "Please fill in all required fields."
-                );
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [fullName, admissionNo, monthlyFee, email, password, phone]);
 
-                return;
-            }
+  // ── Submit Handler ──────────────────────────────────────
+  const handleCreate = useCallback(async () => {
+    if (!validateForm()) {
+      toast.warning("Validation Error", "Please check all required fields");
+      return;
+    }
 
-            try {
-                setLoading(true);
+    try {
+      setLoading(true);
 
-                const { error } =
-                    await createStudent({
-                        full_name:
-                            fullName,
+      const { error } = await createStudent({
+        full_name: fullName.trim(),
+        admission_no: admissionNo.trim(),
+        parent_name: parentName.trim() || "",
+        phone: phone.trim() || "",
+        class_name: composeClassName(classLevel, division),
+        bus_route: busRoute.trim() || "",
+        email: email.trim().toLowerCase(),
+        password,
+        monthly_fee: Number(monthlyFee),
+      });
 
-                        admission_no:
-                            admissionNo,
+      if (error) {
+        if (error.message?.includes("already exists")) {
+          setErrors({ email: "This email is already registered" });
+          toast.error("Registration Failed", "Email already exists");
+        } else if (error.message?.includes("admission")) {
+          setErrors({ admissionNo: "This admission number already exists" });
+          toast.error("Registration Failed", "Admission number already exists");
+        } else {
+          toast.error(
+            "Creation Failed",
+            error.message || "Unable to create student profile",
+          );
+        }
+        return;
+      }
 
-                        parent_name:
-                            parentName,
+      toast.success("Success", "Student profile created successfully");
+      setLoading(false);
+      // Reset form
+      setFullName("");
+      setAdmissionNo("");
+      setParentName("");
+      setPhone("");
+      setClassLevel("");
+      setDivision("");
+      setBusRoute("");
+      setMonthlyFee("");
+      setEmail("");
+      setPassword("");
+      setErrors({});
+    } catch (error: any) {
+      toast.error(
+        "Network Error",
+        error?.message || "Failed to create student",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    validateForm,
+    fullName,
+    admissionNo,
+    parentName,
+    phone,
+    classLevel,
+    division,
+    busRoute,
+    monthlyFee,
+    email,
+    password,
+    toast,
+  ]);
 
-                        phone,
-
-                        class_name:
-                            className,
-
-                        bus_route:
-                            busRoute,
-
-                        email,
-
-                        password,
-
-                        monthly_fee:
-                            Number(
-                                monthlyFee
-                            ),
-                    });
-
-                if (error) {
-                    toast.error(
-                        "Create Failed",
-                        error.message
-                    );
-
-                    return;
-                }
-
-                toast.success(
-                    "Student Added",
-                    "Student profile created successfully."
-                );
-
-                expoRouter.back();
-            } catch (error) {
-                toast.error(
-                    "Network Error",
-                    "Failed to create student."
-                );
-            } finally {
-                setLoading(false);
-            }
-        };
-
+  // ── Render ──────────────────────────────────────────────
+  if (loading) {
     return (
-        <ScreenWrapper>
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{
-                    paddingHorizontal: 20,
-                    paddingTop: 12,
-                    paddingBottom: 40,
-                }}
-            >
-                <KeyboardAwareScrollView
-                    enableOnAndroid
-                    extraScrollHeight={30}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={
-                        false
-                    }
-                    contentContainerStyle={{
-                        paddingHorizontal: 20,
-                        paddingTop: 20,
-                        paddingBottom: 40,
-                    }}
-                >
-                    {/* Header */}
-                    <Pressable
-                        onPress={() =>
-                            expoRouter.back()
-                        }
-                        className="mb-6 self-start rounded-full bg-white px-4 py-2 shadow-sm"
-                    >
-                        <Text className="font-semibold text-blue-600">
-                            ← Back
-                        </Text>
-                    </Pressable>
-
-                    <View className="mb-8">
-                        <Text className="text-3xl font-black tracking-tight text-gray-900">
-                            Add Student
-                        </Text>
-
-                        <Text className="mt-2 text-base leading-6 text-gray-500">
-                            Create a new student
-                            profile and login
-                            credentials
-                        </Text>
-                    </View>
-
-                    {/* Personal Info */}
-                    <View className="mb-5 rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
-                        <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
-                            Personal Information
-                        </Text>
-
-                        <Field
-                            label="Full Name"
-                            value={fullName}
-                            onChangeText={
-                                setFullName
-                            }
-                            placeholder="e.g. Rahul Kumar"
-                            required
-                        />
-
-                        <Field
-                            label="Admission Number"
-                            value={admissionNo}
-                            onChangeText={
-                                setAdmissionNo
-                            }
-                            placeholder="e.g. ADM-2026-001"
-                            required
-                            autoCapitalize="characters"
-                        />
-
-                        <Field
-                            label="Parent Name"
-                            value={parentName}
-                            onChangeText={
-                                setParentName
-                            }
-                            placeholder="e.g. Raj Kumar"
-                        />
-
-                        <Field
-                            label="Phone Number"
-                            value={phone}
-                            onChangeText={
-                                setPhone
-                            }
-                            placeholder="e.g. 9876543210"
-                            keyboardType="phone-pad"
-                            autoCapitalize="none"
-                        />
-                    </View>
-
-                    {/* School Details */}
-                    <View className="mb-5 rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
-                        <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
-                            School Details
-                        </Text>
-
-                        <Field
-                            label="Class"
-                            value={className}
-                            onChangeText={
-                                setClassName
-                            }
-                            placeholder="e.g. 10-A"
-                        />
-
-                        <Field
-                            label="Bus Route"
-                            value={busRoute}
-                            onChangeText={
-                                setBusRoute
-                            }
-                            placeholder="e.g. Route 3"
-                        />
-
-                        <Field
-                            label="Monthly Fee (₹)"
-                            value={monthlyFee}
-                            onChangeText={
-                                setMonthlyFee
-                            }
-                            placeholder="e.g. 1200"
-                            keyboardType="numeric"
-                            required
-                            autoCapitalize="none"
-                        />
-                    </View>
-
-                    {/* Login Credentials */}
-                    <View className="rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
-                        <Text className="mb-5 text-xs font-bold uppercase tracking-[2px] text-gray-400">
-                            Login Credentials
-                        </Text>
-
-                        <Field
-                            label="Email"
-                            value={email}
-                            onChangeText={
-                                setEmail
-                            }
-                            placeholder="student@school.com"
-                            keyboardType="email-address"
-                            required
-                            autoCapitalize="none"
-                        />
-
-                        <Field
-                            label="Password"
-                            value={password}
-                            onChangeText={
-                                setPassword
-                            }
-                            placeholder="Minimum 6 characters"
-                            secureTextEntry
-                            required
-                            autoCapitalize="none"
-                        />
-                    </View>
-
-                    {/* Submit Button */}
-                    <Pressable
-                        onPress={
-                            handleCreate
-                        }
-                        disabled={loading}
-                        className={`mt-8 h-14 items-center justify-center rounded-2xl ${loading
-                            ? "bg-blue-400"
-                            : "bg-blue-600"
-                            }`}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text className="text-base font-bold tracking-wide text-white">
-                                Create Student
-                            </Text>
-                        )}
-                    </Pressable>
-                </KeyboardAwareScrollView>
-            </ScrollView>
-        </ScreenWrapper>
+      <ScreenWrapper>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 14 }}>
+            Creating student profile...
+          </Text>
+        </View>
+      </ScreenWrapper>
     );
+  }
+
+  return (
+    <ScreenWrapper>
+      <KeyboardAwareScrollView
+        enableOnAndroid
+        extraScrollHeight={40}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 32 }}
+      >
+        {/* ── Header ── */}
+        <PageHeader
+          title="Add Student"
+          subtitle="Create new student profile and login credentials"
+          showBack
+        />
+
+        {/* ── Personal Information ── */}
+        <SectionCard title="Personal Information" icon="person-outline">
+          <AppInput
+            label="Full Name"
+            placeholder="e.g. Rahul Kumar"
+            value={fullName}
+            onChangeText={setFullName}
+            iconName="person-outline"
+            required
+            error={errors.fullName}
+            editable={!loading}
+          />
+
+          <AppInput
+            label="Admission Number"
+            placeholder="e.g. ADM-2026-001"
+            value={admissionNo}
+            onChangeText={setAdmissionNo}
+            iconName="id-card-outline"
+            required
+            error={errors.admissionNo}
+            editable={!loading}
+          />
+
+          <AppInput
+            label="Parent Name"
+            placeholder="e.g. Raj Kumar"
+            value={parentName}
+            onChangeText={setParentName}
+            iconName="people-outline"
+            error={errors.parentName}
+            editable={!loading}
+          />
+
+          <AppInput
+            label="Phone Number"
+            placeholder="10-digit mobile number"
+            value={phone}
+            onChangeText={setPhone}
+            iconName="call-outline"
+            keyboardType="phone-pad"
+            maxLength={10}
+            error={errors.phone}
+            editable={!loading}
+          />
+        </SectionCard>
+
+        {/* ── School Details ── */}
+        <SectionCard title="School Details" icon="school-outline">
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <AppInput
+                label="Class"
+                placeholder="e.g. 10"
+                value={classLevel}
+                onChangeText={setClassLevel}
+                iconName="book-outline"
+                autoCapitalize="characters"
+                editable={!loading}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppInput
+                label="Division"
+                placeholder="e.g. A"
+                value={division}
+                onChangeText={setDivision}
+                iconName="grid-outline"
+                autoCapitalize="characters"
+                editable={!loading}
+              />
+            </View>
+          </View>
+
+          <AppInput
+            label="Bus Route"
+            placeholder="e.g. Route 3"
+            value={busRoute}
+            onChangeText={setBusRoute}
+            iconName="bus-outline"
+            editable={!loading}
+          />
+
+          <AppInput
+            label="Monthly Fee (₹)"
+            placeholder="e.g. 1200"
+            value={monthlyFee}
+            onChangeText={setMonthlyFee}
+            iconName="cash-outline"
+            keyboardType="decimal-pad"
+            required
+            error={errors.monthlyFee}
+            editable={!loading}
+          />
+        </SectionCard>
+
+        {/* ── Login Credentials ── */}
+        <SectionCard title="Login Credentials" icon="lock-closed-outline">
+          <AppInput
+            label="Email"
+            placeholder="student@school.com"
+            value={email}
+            onChangeText={setEmail}
+            iconName="mail-outline"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            required
+            error={errors.email}
+            editable={!loading}
+          />
+
+          {/* Password with toggle */}
+          <View style={{ marginBottom: 16 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: Colors.textPrimary,
+                marginBottom: 6,
+                marginLeft: 2,
+              }}
+            >
+              Password<Text style={{ color: Colors.danger }}> *</Text>
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: errors.password ? Colors.danger : Colors.inputBorder,
+                backgroundColor: errors.password ? Colors.dangerLight : Colors.inputBg,
+                paddingHorizontal: 14,
+                minHeight: 50,
+              }}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={errors.password ? Colors.danger : Colors.iconDefault}
+                style={{ marginRight: 10 }}
+              />
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                placeholder="Minimum 6 characters"
+                placeholderTextColor={Colors.textMuted}
+                editable={!loading}
+                style={{
+                  flex: 1,
+                  fontSize: 15,
+                  color: Colors.textPrimary,
+                  paddingVertical: 12,
+                }}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, padding: 8 })}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                  color={Colors.iconDefault}
+                />
+              </Pressable>
+            </View>
+            {errors.password && (
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.danger,
+                  marginTop: 4,
+                  marginLeft: 2,
+                }}
+              >
+                {errors.password}
+              </Text>
+            )}
+          </View>
+        </SectionCard>
+
+        {/* ── Info Note ── */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            borderRadius: 12,
+            backgroundColor: Colors.primaryLight,
+            borderWidth: 1,
+            borderColor: Colors.primaryBorder,
+            padding: 14,
+            marginBottom: 24,
+          }}
+        >
+          <Ionicons
+            name="information-circle-outline"
+            size={18}
+            color={Colors.primary}
+            style={{ marginRight: 10, marginTop: 1 }}
+          />
+          <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
+            The student will use these credentials to log in and view their fee records.
+          </Text>
+        </View>
+
+        {/* ── Submit Button ── */}
+        <AppButton
+          label="Create Student"
+          onPress={handleCreate}
+          loading={loading}
+          disabled={loading}
+          fullWidth
+          iconLeft="person-add-outline"
+        />
+      </KeyboardAwareScrollView>
+    </ScreenWrapper>
+  );
 }

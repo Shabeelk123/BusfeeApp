@@ -1,5 +1,15 @@
 import { supabase } from "../lib/supabase";
 
+export const getTeachers = async () => {
+    const { data, error } = await supabase
+        .from("users")
+        .select("id, name, email, assigned_class, created_at")
+        .eq("role", "TEACHER")
+        .order("name", { ascending: true });
+
+    return { data: data ?? [], error };
+};
+
 export const createTeacher =
     async ({
         name,
