@@ -1,16 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import {
-    Pressable,
-    Text,
-    View
-} from "react-native";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
-import ScreenWrapper from "../../components/common/ScreenWrapper";
-import { useAppDispatch, useAppSelector } from "../../hooks/redux";
-import { supabase } from "../../lib/supabase";
-import { clearUser } from "../../store/authSlice";
+import { Pressable, Text, View } from "react-native";
+
+import AppDrawer from "@/components/common/AppDrawer";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Colors, Shadows } from "@/constants/colors";
+import { useAppDispatch, useAppSelector } from "@/hooks/redux";
+import { supabase } from "@/lib/supabase";
+import { clearUser } from "@/store/authSlice";
 
 function NavCard({
     iconName,
@@ -30,24 +29,45 @@ function NavCard({
     return (
         <Pressable
             onPress={onPress}
-            style={({ pressed }) => ({
-                opacity: pressed ? 0.75 : 1,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 2,
-            })}
-            className="mb-4 flex-row items-center rounded-3xl bg-white p-5"
+            style={({ pressed }) => ([
+                {
+                    marginBottom: 12,
+                    borderRadius: 16,
+                    backgroundColor: Colors.card,
+                    padding: 18,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorderLight,
+                    opacity: pressed ? 0.75 : 1,
+                },
+                Shadows.card,
+            ])}
+            accessibilityRole="button"
+            accessibilityLabel={title}
         >
-            <View className={`mr-4 h-14 w-14 items-center justify-center rounded-2xl ${iconBg}`}>
-                <Ionicons name={iconName} size={28} color={iconColor} />
+            <View
+                style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    backgroundColor: iconBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 16,
+                }}
+            >
+                <Ionicons name={iconName} size={26} color={iconColor} />
             </View>
-            <View className="flex-1">
-                <Text className="text-base font-bold text-gray-900">{title}</Text>
-                <Text className="mt-1 text-sm text-gray-500">{subtitle}</Text>
+            <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.textPrimary }}>
+                    {title}
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                    {subtitle}
+                </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
         </Pressable>
     );
 }
@@ -55,84 +75,215 @@ function NavCard({
 export default function TeacherDashboard() {
     const dispatch = useAppDispatch();
     const user = useAppSelector((state) => state.auth.user);
+    const [showDrawer, setShowDrawer] = useState(false);
     const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         dispatch(clearUser());
-        router.replace("/(auth)/login");
+        router.replace("/(auth)/role-select");
     };
 
     return (
         <ScreenWrapper>
             {/* ── Header ── */}
-            <View className="mb-6 flex-row items-center justify-between">
-                <View>
-                    <Text className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 24,
+                }}
+            >
+                {/* Hamburger menu */}
+                <Pressable
+                    onPress={() => setShowDrawer(true)}
+                    style={({ pressed }) => ({
+                        width: 42,
+                        height: 42,
+                        borderRadius: 13,
+                        backgroundColor: Colors.card,
+                        borderWidth: 1,
+                        borderColor: Colors.cardBorderLight,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: pressed ? 0.7 : 1,
+                        marginRight: 12,
+                        ...Shadows.card,
+                    })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open menu"
+                >
+                    <Ionicons name="menu-outline" size={22} color={Colors.textPrimary} />
+                </Pressable>
+
+                <View style={{ flex: 1 }}>
+                    <Text
+                        style={{
+                            fontSize: 12,
+                            fontWeight: "700",
+                            color: Colors.textSecondary,
+                            textTransform: "uppercase",
+                            letterSpacing: 1,
+                        }}
+                    >
                         Teacher Portal
                     </Text>
-                    <Text className="mt-1 text-2xl font-bold text-gray-900">
+                    <Text
+                        numberOfLines={1}
+                        style={{
+                            marginTop: 4,
+                            fontSize: 22,
+                            fontWeight: "800",
+                            color: Colors.textPrimary,
+                        }}
+                    >
                         {user?.name ?? "Teacher"}
                     </Text>
                 </View>
-                <Pressable
-                    onPress={() => setShowLogoutDialog(true)}
-                    style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-                    className="flex-row items-center rounded-xl border border-red-200 bg-red-50 px-4 py-2"
-                >
-                    <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
-                    <Text className="text-sm font-semibold text-red-500">Sign Out</Text>
-                </Pressable>
             </View>
 
             {/* ── Hero Banner ── */}
             <View
-                className="mb-6 overflow-hidden rounded-3xl bg-purple-600 p-6"
-                style={{ shadowColor: "#7c3aed", shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}
+                style={[
+                    {
+                        borderRadius: 20,
+                        backgroundColor: Colors.info,
+                        padding: 22,
+                        marginBottom: 24,
+                    },
+                    Shadows.cardMd,
+                ]}
             >
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                        <Text className="text-xs font-bold uppercase tracking-widest text-purple-200">
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flex: 1 }}>
+                        <Text
+                            style={{
+                                fontSize: 11,
+                                fontWeight: "700",
+                                letterSpacing: 1.5,
+                                textTransform: "uppercase",
+                                color: "rgba(255,255,255,0.65)",
+                                marginBottom: 4,
+                            }}
+                        >
                             BusFee Tracker
                         </Text>
-                        <Text className="mt-1.5 text-xl font-bold text-white">Teacher Portal</Text>
-                        <Text className="mt-1 text-sm text-purple-200">Manage your class & track fees</Text>
+                        <Text style={{ fontSize: 20, fontWeight: "800", color: "white" }}>
+                            Teacher Portal
+                        </Text>
+                        <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
+                            Manage your class & track fees
+                        </Text>
                     </View>
-                    <View className="h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
-                        <Ionicons name="book" size={36} color="white" />
+                    <View
+                        style={{
+                            width: 60,
+                            height: 60,
+                            borderRadius: 18,
+                            backgroundColor: "rgba(255,255,255,0.15)",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Ionicons name="book" size={32} color="white" />
                     </View>
                 </View>
             </View>
 
             {/* ── Quick Access ── */}
-            <Text className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
+            <Text
+                style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
+                    color: Colors.textMuted,
+                    marginBottom: 12,
+                }}
+            >
                 Quick Access
             </Text>
 
             <NavCard
                 iconName="people-outline"
-                iconBg="bg-blue-100"
-                iconColor="#2563eb"
+                iconBg={Colors.primaryLight}
+                iconColor={Colors.primary}
                 title="My Students"
                 subtitle="View and manage class students"
                 onPress={() => router.push("/(teacher)/students")}
             />
             <NavCard
                 iconName="alert-circle-outline"
-                iconBg="bg-red-100"
-                iconColor="#ef4444"
+                iconBg={Colors.dangerLight}
+                iconColor={Colors.danger}
                 title="Defaulters"
                 subtitle="Students with outstanding fees"
                 onPress={() => router.push("/(teacher)/defaulters")}
             />
 
-            {/* ── Bottom info card ── */}
-            <View className="mt-2 rounded-3xl bg-white p-6 shadow-sm">
-                <Text className="text-xl font-bold text-gray-900">Your Class</Text>
-                <Text className="mt-2 leading-6 text-gray-500">
-                    Monitor student fee payments, track defaulters, and manage your class roster from here.
+            {/* ── Info card ── */}
+            <View
+                style={[
+                    {
+                        marginTop: 8,
+                        borderRadius: 16,
+                        backgroundColor: Colors.card,
+                        padding: 20,
+                        borderWidth: 1,
+                        borderColor: Colors.cardBorderLight,
+                    },
+                    Shadows.card,
+                ]}
+            >
+                <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
+                    Your Class
+                </Text>
+                <Text
+                    style={{
+                        fontSize: 13,
+                        color: Colors.textSecondary,
+                        marginTop: 8,
+                        lineHeight: 20,
+                    }}
+                >
+                    Monitor student fee payments, track defaulters, and manage
+                    your class roster from here.
                 </Text>
             </View>
+
+            {/* ── App Drawer ── */}
+            <AppDrawer
+                visible={showDrawer}
+                onClose={() => setShowDrawer(false)}
+                userName={user?.name}
+                userRole="Teacher"
+                items={[
+                    {
+                        id: "about",
+                        icon: "information-circle-outline",
+                        label: "About",
+                        sublabel: "App info & version",
+                        onPress: () => router.push("/about"),
+                    },
+                    {
+                        id: "privacy",
+                        icon: "shield-checkmark-outline",
+                        label: "Privacy Policy",
+                        sublabel: "busfeeapp.netlify.app",
+                        onPress: () => router.push("/privacy-policy"),
+                    },
+                    {
+                        id: "signout",
+                        icon: "log-out-outline",
+                        label: "Sign Out",
+                        sublabel: "Return to login screen",
+                        onPress: () => setShowLogoutDialog(true),
+                        variant: "danger",
+                    },
+                ]}
+            />
+
+            {/* ── Sign Out Confirm ── */}
             <ConfirmDialog
                 visible={showLogoutDialog}
                 variant="warning"

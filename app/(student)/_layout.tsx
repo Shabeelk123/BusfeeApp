@@ -7,7 +7,7 @@ export default function StudentLayout() {
     const role = useAppSelector((state) => state.auth.role);
 
     if (!role || role !== "STUDENT") {
-        return <Redirect href="/(auth)/login" />;
+        return <Redirect href="/(auth)/role-select" />;
     }
 
     return <Slot />;

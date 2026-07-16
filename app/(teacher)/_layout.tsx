@@ -8,7 +8,7 @@ export default function TeacherLayout() {
     const role = useAppSelector((state) => state.auth.role);
 
     if (!role || role !== "TEACHER") {
-        return <Redirect href="/(auth)/login" />;
+        return <Redirect href="/(auth)/role-select" />;
     }
 
     return <Stack screenOptions={{ headerShown: false }} />;

@@ -10,7 +10,7 @@ export default function AdminLayout() {
     const role = useAppSelector((state) => state.auth.role);
 
     if (!role || role !== "ADMIN") {
-        return <Redirect href="/(auth)/login" />;
+        return <Redirect href="/(auth)/role-select" />;
     }
 
     return <Slot />;

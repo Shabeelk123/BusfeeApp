@@ -1,273 +1,403 @@
 import AppButton from "@/components/common/AppButton";
 import AppInput from "@/components/common/AppInput";
-import { Colors } from "@/constants/colors";
+import { Colors, Radius, Shadows } from "@/constants/colors";
 import { useAppDispatch } from "@/hooks/redux";
 import { supabase } from "@/lib/supabase";
 import { loginUser } from "@/services/auth.service";
 import { setUser } from "@/store/authSlice";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, SafeAreaView, Text, TextInput, View } from "react-native";
+import {
+    Alert,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+
+type Role = "ADMIN" | "TEACHER" | "STUDENT";
+
+const ROLE_META: Record<
+    Role,
+    { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; colorLight: string }
+> = {
+    ADMIN: {
+        label: "Administrator",
+        icon: "shield-checkmark",
+        color: Colors.primary,
+        colorLight: "#EFF6FF",
+    },
+    TEACHER: {
+        label: "Teacher",
+        icon: "people",
+        color: Colors.success,
+        colorLight: "#D1FAE5",
+    },
+    STUDENT: {
+        label: "Student",
+        icon: "school",
+        color: Colors.info,
+        colorLight: "#EDE9FE",
+    },
+};
 
 export default function LoginScreen() {
-  const dispatch = useAppDispatch();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {},
-  );
+    const dispatch = useAppDispatch();
+    const { role } = useLocalSearchParams<{ role?: Role }>();
 
-  const validateForm = useCallback((): boolean => {
-    const newErrors: typeof errors = {};
+    // Fall back gracefully if accessed directly without a role param
+    const selectedRole: Role = role ?? "ADMIN";
+    const meta = ROLE_META[selectedRole];
 
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Enter a valid email address";
-    }
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-    if (!password) {
-      newErrors.password = "Password is required";
-    }
+    const validateForm = useCallback((): boolean => {
+        const newErrors: typeof errors = {};
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [email, password]);
+        if (!email.trim()) {
+            newErrors.email = "Email is required";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            newErrors.email = "Enter a valid email address";
+        }
 
-  const handleLogin = useCallback(async () => {
-    if (!validateForm()) {
-      return;
-    }
+        if (!password) {
+            newErrors.password = "Password is required";
+        }
 
-    try {
-      setLoading(true);
-      const { data, error } = await loginUser(
-        email.trim().toLowerCase(),
-        password,
-      );
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    }, [email, password]);
 
-      if (error) {
-        Alert.alert("Login Failed", error.message || "Invalid credentials");
-        return;
-      }
+    const handleLogin = useCallback(async () => {
+        if (!validateForm()) return;
 
-      const authUser = data.user;
-      if (!authUser) {
-        Alert.alert("Error", "User not found");
-        return;
-      }
+        try {
+            setLoading(true);
+            const { data, error } = await loginUser(
+                email.trim().toLowerCase(),
+                password,
+            );
 
-      const { data: profile, error: profileError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("auth_id", authUser.id)
-        .single();
+            if (error) {
+                Alert.alert("Login Failed", error.message || "Invalid credentials");
+                return;
+            }
 
-      if (profileError || !profile) {
-        Alert.alert("Profile Not Found", "Please contact administrator");
-        return;
-      }
+            const authUser = data.user;
+            if (!authUser) {
+                Alert.alert("Error", "User not found");
+                return;
+            }
 
-      dispatch(setUser({ user: profile, role: profile.role }));
+            const { data: profile, error: profileError } = await supabase
+                .from("users")
+                .select("*")
+                .eq("auth_id", authUser.id)
+                .single();
 
-      if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
-      else if (profile.role === "TEACHER")
-        router.replace("/(teacher)/dashboard");
-      else if (profile.role === "STUDENT")
-        router.replace("/(student)/dashboard");
-    } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error?.message || "Something went wrong. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [validateForm, email, password, dispatch]);
+            if (profileError || !profile) {
+                Alert.alert("Profile Not Found", "Please contact administrator");
+                return;
+            }
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-      <KeyboardAwareScrollView
-        enableOnAndroid
-        extraScrollHeight={40}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingHorizontal: 24,
-          paddingVertical: 40,
-        }}
-      >
-        {/* ── Logo + Heading ── */}
-        <View style={{ marginBottom: 56, alignItems: "center" }}>
-          <View
-            style={{
-              marginBottom: 24,
-              height: 96,
-              width: 96,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 24,
-              backgroundColor: Colors.primary,
-              shadowColor: Colors.primary,
-              shadowOpacity: 0.3,
-              shadowRadius: 16,
-              elevation: 6,
-            }}
-          >
-            <Ionicons name="bus" size={48} color={Colors.textOnDark} />
-          </View>
-          <Text
-            style={{
-              textAlign: "center",
-              fontSize: 32,
-              fontWeight: "900",
-              letterSpacing: -0.5,
-              color: Colors.textPrimary,
-            }}
-          >
-            Welcome Back
-          </Text>
-          <Text
-            style={{
-              marginTop: 12,
-              textAlign: "center",
-              fontSize: 15,
-              lineHeight: 24,
-              color: Colors.textSecondary,
-            }}
-          >
-            Sign in to continue to your School ERP dashboard
-          </Text>
-        </View>
+            // ── Role validation ──────────────────────────────────────────
+            // Ensure the credentials belong to the role the user selected.
+            if (profile.role !== selectedRole) {
+                // Sign out the Supabase session immediately — wrong portal.
+                await supabase.auth.signOut();
+                Alert.alert(
+                    "Wrong Portal",
+                    `These credentials belong to a ${profile.role.charAt(0) + profile.role.slice(1).toLowerCase()} account. Please go back and select the correct login portal.`,
+                );
+                return;
+            }
 
-        {/* ── Login Card ── */}
-        <View
-          style={{
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: Colors.cardBorder,
-            backgroundColor: Colors.card,
-            padding: 28,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            elevation: 2,
-            marginBottom: 40,
-          }}
-        >
-          {/* Email */}
-          <AppInput
-            label="Email Address"
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            iconName="mail-outline"
-            required
-            error={errors.email}
-          />
+            dispatch(setUser({ user: profile, role: profile.role }));
 
-          {/* Password */}
-          <View style={{ marginBottom: 24 }}>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: Colors.textPrimary,
-                marginBottom: 6,
-                marginLeft: 2,
-              }}
+            if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
+            else if (profile.role === "TEACHER") router.replace("/(teacher)/dashboard");
+            else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
+        } catch (err: any) {
+            Alert.alert("Error", err?.message || "Something went wrong. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    }, [validateForm, email, password, dispatch, selectedRole]);
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+            <KeyboardAwareScrollView
+                enableOnAndroid
+                extraScrollHeight={40}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scroll}
             >
-              Password
-              <Text style={{ color: Colors.danger }}> *</Text>
-            </Text>
+                {/* ── Back button ── */}
+                <Pressable
+                    onPress={() => router.back()}
+                    style={styles.backBtn}
+                >
+                    <Ionicons
+                        name="arrow-back"
+                        size={20}
+                        color={Colors.textSecondary}
+                    />
+                    <Text style={styles.backText}>Change role</Text>
+                </Pressable>
 
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                borderRadius: 12,
-                borderWidth: 1.5,
-                borderColor: errors.password
-                  ? Colors.danger
-                  : Colors.inputBorder,
-                backgroundColor: errors.password ? "#FEE2E2" : Colors.inputBg,
-                paddingHorizontal: 14,
-                minHeight: 50,
-              }}
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={errors.password ? Colors.danger : Colors.iconDefault}
-                style={{ marginRight: 10 }}
-              />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                placeholder="Enter your password"
-                placeholderTextColor={Colors.textMuted}
-                style={{
-                  flex: 1,
-                  fontSize: 15,
-                  color: Colors.textPrimary,
-                  paddingVertical: 12,
-                }}
-              />
-              <AppButton
-                label={showPassword ? "Hide" : "Show"}
-                onPress={() => setShowPassword(!showPassword)}
-                variant="ghost"
-                size="sm"
-                iconRight={showPassword ? "eye-off-outline" : "eye-outline"}
-              />
-            </View>
-            {errors.password && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: Colors.danger,
-                  marginTop: 4,
-                  marginLeft: 2,
-                }}
-              >
-                {errors.password}
-              </Text>
-            )}
-          </View>
+                {/* ── Logo + Role badge ── */}
+                <View style={styles.headerSection}>
+                    <View
+                        style={[
+                            styles.iconBadge,
+                            { backgroundColor: meta.colorLight },
+                        ]}
+                    >
+                        <Ionicons
+                            name={meta.icon}
+                            size={44}
+                            color={meta.color}
+                        />
+                    </View>
 
-          {/* Login Button */}
-          <AppButton
-            label="Sign In"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-            fullWidth
-          />
-        </View>
+                    {/* Role pill */}
+                    <View
+                        style={[
+                            styles.rolePill,
+                            {
+                                backgroundColor: meta.colorLight,
+                                borderColor: meta.color + "40",
+                            },
+                        ]}
+                    >
+                        <Ionicons
+                            name={meta.icon}
+                            size={12}
+                            color={meta.color}
+                        />
+                        <Text style={[styles.rolePillText, { color: meta.color }]}>
+                            {meta.label} Login
+                        </Text>
+                    </View>
 
-        {/* ── Footer ── */}
-        <View style={{ alignItems: "center" }}>
-          <Text
-            style={{
-              textAlign: "center",
-              fontSize: 12,
-              lineHeight: 18,
-              color: Colors.textMuted,
-            }}
-          >
-            School ERP Management System © 2026
-          </Text>
-        </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
-  );
+                    <Text style={styles.heading}>Welcome Back</Text>
+                    <Text style={styles.subheading}>
+                        Sign in to your {meta.label.toLowerCase()} dashboard
+                    </Text>
+                </View>
+
+                {/* ── Login Card ── */}
+                <View style={styles.card}>
+                    {/* Email */}
+                    <AppInput
+                        label="Email Address"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        iconName="mail-outline"
+                        required
+                        error={errors.email}
+                    />
+
+                    {/* Password */}
+                    <View style={{ marginBottom: 24 }}>
+                        <Text style={styles.fieldLabel}>
+                            Password
+                            <Text style={{ color: Colors.danger }}> *</Text>
+                        </Text>
+
+                        <View
+                            style={[
+                                styles.passwordRow,
+                                {
+                                    borderColor: errors.password
+                                        ? Colors.danger
+                                        : Colors.inputBorder,
+                                    backgroundColor: errors.password
+                                        ? "#FEE2E2"
+                                        : Colors.inputBg,
+                                },
+                            ]}
+                        >
+                            <Ionicons
+                                name="lock-closed-outline"
+                                size={18}
+                                color={
+                                    errors.password
+                                        ? Colors.danger
+                                        : Colors.iconDefault
+                                }
+                                style={{ marginRight: 10 }}
+                            />
+                            <TextInput
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                placeholder="Enter your password"
+                                placeholderTextColor={Colors.textMuted}
+                                style={styles.passwordInput}
+                            />
+                            <AppButton
+                                label={showPassword ? "Hide" : "Show"}
+                                onPress={() => setShowPassword(!showPassword)}
+                                variant="ghost"
+                                size="sm"
+                                iconRight={
+                                    showPassword ? "eye-off-outline" : "eye-outline"
+                                }
+                            />
+                        </View>
+                        {errors.password && (
+                            <Text style={styles.fieldError}>{errors.password}</Text>
+                        )}
+                    </View>
+
+                    {/* Submit */}
+                    <AppButton
+                        label={`Sign in as ${meta.label}`}
+                        onPress={handleLogin}
+                        loading={loading}
+                        disabled={loading}
+                        fullWidth
+                    />
+                </View>
+
+                {/* ── Footer ── */}
+                <View style={{ alignItems: "center" }}>
+                    <Text style={styles.footer}>
+                        School ERP Management System © 2026
+                    </Text>
+                </View>
+            </KeyboardAwareScrollView>
+        </SafeAreaView>
+    );
 }
+
+const styles = StyleSheet.create({
+    scroll: {
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingTop: 8,
+        paddingBottom: 16,
+    },
+
+    // Back
+    backBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        alignSelf: "flex-start",
+        paddingVertical: 6,
+        paddingHorizontal: 4,
+        marginBottom: 12,
+    },
+    backText: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        fontWeight: "500",
+    },
+
+    // Header
+    headerSection: {
+        alignItems: "center",
+        marginBottom: 20,
+    },
+    iconBadge: {
+        width: 72,
+        height: 72,
+        borderRadius: Radius.hero,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 10,
+        ...Shadows.cardMd,
+    },
+    rolePill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderRadius: 999,
+        borderWidth: 1,
+        marginBottom: 10,
+    },
+    rolePillText: {
+        fontSize: 12,
+        fontWeight: "700",
+        letterSpacing: 0.3,
+    },
+    heading: {
+        fontSize: 26,
+        fontWeight: "900",
+        letterSpacing: -0.5,
+        color: Colors.textPrimary,
+        marginBottom: 6,
+        textAlign: "center",
+    },
+    subheading: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        textAlign: "center",
+        lineHeight: 22,
+    },
+
+    // Card
+    card: {
+        borderRadius: Radius.card,
+        borderWidth: 1,
+        borderColor: Colors.cardBorder,
+        backgroundColor: Colors.card,
+        padding: 20,
+        marginBottom: 16,
+        ...Shadows.card,
+    },
+
+    // Fields
+    fieldLabel: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: Colors.textPrimary,
+        marginBottom: 6,
+        marginLeft: 2,
+    },
+    passwordRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderRadius: Radius.input,
+        borderWidth: 1.5,
+        paddingHorizontal: 14,
+        minHeight: 50,
+    },
+    passwordInput: {
+        flex: 1,
+        fontSize: 15,
+        color: Colors.textPrimary,
+        paddingVertical: 12,
+    },
+    fieldError: {
+        fontSize: 12,
+        color: Colors.danger,
+        marginTop: 4,
+        marginLeft: 2,
+    },
+
+    // Footer
+    footer: {
+        textAlign: "center",
+        fontSize: 12,
+        color: Colors.textMuted,
+        lineHeight: 18,
+    },
+});

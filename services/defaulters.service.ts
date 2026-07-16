@@ -1,153 +1,103 @@
 import { supabase } from "../lib/supabase";
+import { buildMonthLedger } from "../utils/monthlyFeeStatus";
 
-export const getCurrentMonthDefaulters =
-    async ({
-        selectedClass = "ALL",
-    }: {
-        selectedClass?: string;
-    }) => {
-        const now =
-            new Date();
+/**
+ * Returns students who have any outstanding balance for the current month
+ * (or any prior unpaid month), respecting each student's effective_from date.
+ *
+ * A student is a "defaulter" if:
+ *   - Their effective_from date is on or before the current month, AND
+ *   - They have an unpaid/partially-paid month anywhere in their ledger
+ */
+export const getCurrentMonthDefaulters = async ({
+    selectedClass = "ALL",
+}: {
+    selectedClass?: string;
+}) => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
 
-        const month =
-            now.getMonth() + 1;
-
-        const year =
-            now.getFullYear();
-
-        // Base query
-        let query =
-            supabase
-                .from("students")
-                .select(`
-                    id,
-                    full_name,
-                    class_name,
-                    phone,
-
-                    student_fee_assignments (
-                        monthly_fee
-                    )
-                `);
-
-        // Class filter
-        if (
-            selectedClass !==
-            "ALL"
-        ) {
-            query = query.eq(
-                "class_name",
-                selectedClass
-            );
-        }
-
-        // Fetch students
-        const {
-            data: students,
-            error:
-            studentsError,
-        } = await query;
-
-        if (studentsError) {
-            return {
-                data: [],
-                error:
-                    studentsError,
-            };
-        }
-
-        // Fetch current month transactions
-        const {
-            data: transactions,
-            error:
-            transactionError,
-        } = await supabase
-            .from(
-                "fee_transactions"
+    // ── Fetch students with fee assignments and all transactions ──────────────
+    let query = supabase
+        .from("students")
+        .select(`
+            id,
+            full_name,
+            class_name,
+            phone,
+            created_at,
+            student_fee_assignments (
+                monthly_fee,
+                effective_from
+            ),
+            fee_transactions (
+                amount,
+                payment_month,
+                payment_year
             )
-            .select(`
-                student_id,
-                amount
-            `)
-            .eq(
-                "payment_month",
-                month
-            )
-            .eq(
-                "payment_year",
-                year
-            );
+        `);
 
-        if (
-            transactionError
-        ) {
-            return {
-                data: [],
-                error:
-                    transactionError,
-            };
-        }
+    if (selectedClass !== "ALL") {
+        query = query.eq("class_name", selectedClass);
+    }
 
-        // Calculate pending
-        const defaulters =
-            students
-                .map(
-                    (
-                        student: any
-                    ) => {
-                        const monthlyFee =
-                            Number(
-                                student
-                                    ?.student_fee_assignments?.[0]
-                                    ?.monthly_fee || 0
-                            );
+    const { data: students, error: studentsError } = await query;
 
-                        const paid =
-                            transactions
-                                ?.filter(
-                                    (
-                                        t: any
-                                    ) =>
-                                        t.student_id ===
-                                        student.id
-                                )
-                                .reduce(
-                                    (
-                                        sum: number,
-                                        item: any
-                                    ) =>
-                                        sum +
-                                        Number(
-                                            item.amount
-                                        ),
-                                    0
-                                ) || 0;
+    if (studentsError) {
+        return { data: [], error: studentsError };
+    }
 
-                        const pending =
-                            monthlyFee -
-                            paid;
+    const defaulters: any[] = [];
 
-                        return {
-                            ...student,
+    for (const student of students || []) {
+        const s = student as any;
+        const assignment = s.student_fee_assignments?.[0];
+        if (!assignment) continue;
 
-                            monthlyFee,
+        const monthlyFee = Number(assignment.monthly_fee || 0);
+        if (monthlyFee <= 0) continue;
 
-                            paid,
+        const effectiveFrom: string = assignment.effective_from || s.created_at;
+        const transactions: any[] = s.fee_transactions || [];
 
-                            pending,
-                        };
-                    }
-                )
-                .filter(
-                    (
-                        student: any
-                    ) =>
-                        student.pending >
-                        0
-                );
+        // Build ledger from effective_from to current month
+        const ledger = buildMonthLedger({
+            monthlyFee,
+            effectiveFrom,
+            joinDate: s.created_at,
+            transactions,
+        });
 
-        return {
-            data: defaulters,
-            error: null,
-        };
+        // Calculate totals
+        const totalPaid = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+        const totalDue = ledger.reduce((sum, e) => sum + Math.max(0, e.expected - e.paid), 0);
+
+        if (totalDue <= 0) continue; // No outstanding balance
+
+        // Find the oldest unpaid month for display
+        const oldestUnpaid = ledger.find((m) => m.status !== "PAID");
+
+        // Find this current month's specific status
+        const currentMonthEntry = ledger.find(
+            (m) => m.month === currentMonth && m.year === currentYear
+        );
+
+        defaulters.push({
+            ...s,
+            monthlyFee,
+            paid: totalPaid,
+            pending: totalDue,
+            oldestUnpaidMonth: oldestUnpaid
+                ? { month: oldestUnpaid.month, year: oldestUnpaid.year }
+                : null,
+            currentMonthPaid: currentMonthEntry?.paid || 0,
+            currentMonthStatus: currentMonthEntry?.status || "PENDING",
+        });
+    }
+
+    return {
+        data: defaulters,
+        error: null,
     };
+};

@@ -1,7 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Text, TextInput, View, Pressable } from "react-native";
+import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+
+const MONTHS_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 import AppButton from "@/components/common/AppButton";
 import AppInput from "@/components/common/AppInput";
@@ -118,6 +123,12 @@ export default function CreateStudentScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  // ── Effective From (fee start month) ────────────────────
+  const now = new Date();
+  const [effectiveMonth, setEffectiveMonth] = useState(now.getMonth()); // 0-based
+  const [effectiveYear, setEffectiveYear] = useState(now.getFullYear());
+  const [showEffectivePicker, setShowEffectivePicker] = useState(false);
+
   // ── UI State ────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -170,6 +181,10 @@ export default function CreateStudentScreen() {
     try {
       setLoading(true);
 
+      // Build YYYY-MM-DD for the 1st of the selected effective month
+      const paddedMonth = String(effectiveMonth + 1).padStart(2, "0");
+      const effectiveFromDate = `${effectiveYear}-${paddedMonth}-01`;
+
       const { error } = await createStudent({
         full_name: fullName.trim(),
         admission_no: admissionNo.trim(),
@@ -180,6 +195,7 @@ export default function CreateStudentScreen() {
         email: email.trim().toLowerCase(),
         password,
         monthly_fee: Number(monthlyFee),
+        effectiveFrom: effectiveFromDate,
       });
 
       if (error) {
@@ -211,6 +227,8 @@ export default function CreateStudentScreen() {
       setMonthlyFee("");
       setEmail("");
       setPassword("");
+      setEffectiveMonth(new Date().getMonth());
+      setEffectiveYear(new Date().getFullYear());
       setErrors({});
     } catch (error: any) {
       toast.error(
@@ -359,7 +377,110 @@ export default function CreateStudentScreen() {
             error={errors.monthlyFee}
             editable={!loading}
           />
+
+          {/* ── Effective From ── */}
+          <View style={{ marginTop: 4 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: Colors.textPrimary, marginBottom: 6, marginLeft: 2 }}>
+              Fee Starts From
+            </Text>
+            <Pressable
+              onPress={() => setShowEffectivePicker(true)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: Colors.primaryBorder,
+                backgroundColor: Colors.primaryLight,
+                paddingHorizontal: 14,
+                height: 50,
+                opacity: pressed ? 0.8 : 1,
+                gap: 10,
+              })}
+              accessibilityRole="button"
+              accessibilityLabel="Select fee effective from month"
+            >
+              <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+              <Text style={{ flex: 1, fontSize: 15, fontWeight: "700", color: Colors.primary }}>
+                {MONTHS_FULL[effectiveMonth]} {effectiveYear}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={Colors.primary} />
+            </Pressable>
+            <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 4, marginLeft: 2 }}>
+              Student's dues will only start from this month.
+            </Text>
+          </View>
         </SectionCard>
+
+        {/* ── Effective From Month Picker Modal ── */}
+        <Modal
+          visible={showEffectivePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowEffectivePicker(false)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}
+            onPress={() => setShowEffectivePicker(false)}
+          >
+            <Pressable
+              style={{ backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}
+              onPress={() => {}}
+            >
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.cardBorder, alignSelf: "center", marginBottom: 20 }} />
+              <Text style={{ fontSize: 18, fontWeight: "800", color: Colors.textPrimary, marginBottom: 4 }}>Fee Starts From</Text>
+              <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 20 }}>Choose the month when dues start for this student</Text>
+
+              {/* Year selector */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 24, marginBottom: 18 }}>
+                <Pressable
+                  onPress={() => setEffectiveYear((y) => y - 1)}
+                  style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.6 : 1 })}
+                  accessibilityLabel="Previous year"
+                >
+                  <Ionicons name="chevron-back" size={22} color={Colors.primary} />
+                </Pressable>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.textPrimary }}>{effectiveYear}</Text>
+                <Pressable
+                  onPress={() => setEffectiveYear((y) => y + 1)}
+                  style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.6 : 1 })}
+                  accessibilityLabel="Next year"
+                >
+                  <Ionicons name="chevron-forward" size={22} color={Colors.primary} />
+                </Pressable>
+              </View>
+
+              {/* Month grid */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {MONTHS_FULL.map((name, idx) => {
+                  const isSelected = effectiveMonth === idx;
+                  return (
+                    <Pressable
+                      key={idx}
+                      onPress={() => { setEffectiveMonth(idx); setShowEffectivePicker(false); }}
+                      style={({ pressed }) => ({
+                        width: "30%",
+                        paddingVertical: 14,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        borderWidth: 1.5,
+                        borderColor: isSelected ? Colors.primary : Colors.cardBorder,
+                        backgroundColor: isSelected ? Colors.primary : Colors.inputBg,
+                        opacity: pressed ? 0.75 : 1,
+                      })}
+                      accessibilityRole="button"
+                      accessibilityLabel={name}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: isSelected ? "800" : "600", color: isSelected ? Colors.textOnDark : Colors.textPrimary }}>
+                        {name.slice(0, 3)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* ── Login Credentials ── */}
         <SectionCard title="Login Credentials" icon="lock-closed-outline">
@@ -448,30 +569,6 @@ export default function CreateStudentScreen() {
             )}
           </View>
         </SectionCard>
-
-        {/* ── Info Note ── */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-start",
-            borderRadius: 12,
-            backgroundColor: Colors.primaryLight,
-            borderWidth: 1,
-            borderColor: Colors.primaryBorder,
-            padding: 14,
-            marginBottom: 24,
-          }}
-        >
-          <Ionicons
-            name="information-circle-outline"
-            size={18}
-            color={Colors.primary}
-            style={{ marginRight: 10, marginTop: 1 }}
-          />
-          <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
-            The student will use these credentials to log in and view their fee records.
-          </Text>
-        </View>
 
         {/* ── Submit Button ── */}
         <AppButton

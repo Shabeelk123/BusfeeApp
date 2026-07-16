@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Modal,
@@ -11,11 +12,19 @@ import {
     View,
 } from "react-native";
 
+import { Colors, Shadows } from "../../constants/colors";
+import {
+    collectPayment,
+    FeeStatusResult,
+    getStudentFeeStatus,
+    PaymentAllocation,
+} from "../../services/payment.service";
+import { MonthEntry } from "../../utils/monthlyFeeStatus";
 import PageHeader from "../common/PageHeader";
 import ScreenWrapper from "../common/ScreenWrapper";
 import { useToast } from "../common/ToastContext";
-import { Colors, Shadows } from "../../constants/colors";
-import { addPayment } from "../../services/payment.service";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 interface Props {
     role: "ADMIN" | "TEACHER";
@@ -26,74 +35,236 @@ const MONTHS = [
     "July", "August", "September", "October", "November", "December",
 ];
 
-// ── Academic months (June → March, 0-based) ─────────────────────────────────
-// June=5, July=6, ..., December=11, January=0, February=1, March=2
-const ACADEMIC_MONTH_INDICES = [5, 6, 7, 8, 9, 10, 11, 0, 1, 2];
+const QUICK_AMOUNTS = ["500", "1000", "1500", "2000", "2500", "3000"];
 
-/**
- * Returns the best default month index (0-based) for payment entry.
- * If the current calendar month falls within the academic period (Jun–Mar)
- * it is used directly. April & May are outside the academic period, so we
- * default to June (start of the new academic year).
- */
-function getDefaultAcademicMonth(date: Date): number {
-    const m = date.getMonth(); // 0-based
-    return ACADEMIC_MONTH_INDICES.includes(m) ? m : 5; // 5 = June
+// ─── Helper: compute live payment preview ────────────────────────────────────
+
+function computePreview(
+    amount: number,
+    feeStatus: FeeStatusResult,
+    overrideMonth?: number,
+    overrideYear?: number,
+): { allocations: { month: number; year: number; give: number; needed: number }[]; advance: number } {
+    if (amount <= 0 || !feeStatus) return { allocations: [], advance: 0 };
+
+    const today = new Date();
+    // Build a future-extended ledger for advance preview (12 months ahead)
+    const futureMonths: MonthEntry[] = [];
+    const existingMonths = feeStatus.months;
+
+    // Add 12 months beyond the last ledger entry
+    const last = existingMonths[existingMonths.length - 1];
+    if (last) {
+        let cur = new Date(last.year, last.month, 1); // month is 1-based → JS month = last.month
+        for (let i = 0; i < 12; i++) {
+            futureMonths.push({
+                month: cur.getMonth() + 1,
+                year: cur.getFullYear(),
+                expected: feeStatus.monthlyFee,
+                paid: 0,
+                status: "PENDING",
+            });
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+        }
+    }
+
+    const fullLedger = [...existingMonths, ...futureMonths];
+
+    let startIndex = 0;
+    if (overrideMonth && overrideYear) {
+        const idx = fullLedger.findIndex(
+            (m) => m.month === overrideMonth && m.year === overrideYear
+        );
+        if (idx >= 0) startIndex = idx;
+    } else {
+        const idx = fullLedger.findIndex((m) => m.status !== "PAID");
+        startIndex = idx >= 0 ? idx : fullLedger.length;
+    }
+
+    const allocations: { month: number; year: number; give: number; needed: number }[] = [];
+    let remaining = amount;
+
+    for (let i = startIndex; i < fullLedger.length && remaining > 0; i++) {
+        const entry = fullLedger[i];
+        const needed = entry.expected - entry.paid;
+        if (needed <= 0) continue;
+
+        const give = Math.min(remaining, needed);
+        remaining -= give;
+        allocations.push({ month: entry.month, year: entry.year, give, needed });
+    }
+
+    return { allocations, advance: remaining };
 }
 
-// ── Quick-amount chips ────────────────────────────────────────────────────────
-const QUICK_AMOUNTS = ["500", "1000", "1500", "2000", "2500", "3000"];
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function InfoPill({ label, value, tone = "neutral" }: {
+    label: string;
+    value: string;
+    tone?: "neutral" | "danger" | "success" | "warning";
+}) {
+    const colorMap = {
+        neutral: { bg: Colors.inputBg, text: Colors.textPrimary, label: Colors.textMuted },
+        danger:  { bg: Colors.dangerLight, text: Colors.danger, label: Colors.danger },
+        success: { bg: Colors.successLight, text: Colors.success, label: Colors.success },
+        warning: { bg: Colors.warningLight, text: Colors.warning, label: Colors.warning },
+    };
+    const c = colorMap[tone];
+    return (
+        <View style={{ flex: 1, borderRadius: 12, backgroundColor: c.bg, padding: 12 }}>
+            <Text style={{ fontSize: 10, fontWeight: "700", color: c.label, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                {label}
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: c.text }} numberOfLines={1}>
+                {value}
+            </Text>
+        </View>
+    );
+}
+
+function AllocationRow({ month, year, give, needed }: {
+    month: number; year: number; give: number; needed: number;
+}) {
+    const full = give >= needed;
+    return (
+        <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.cardBorderLight }}>
+            <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.textPrimary }}>
+                    {MONTHS[month - 1]} {year}
+                </Text>
+                {!full && (
+                    <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 1 }}>
+                        Remaining after: ₹{(needed - give).toLocaleString()}
+                    </Text>
+                )}
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: full ? Colors.success : Colors.warning }}>
+                    ₹{give.toLocaleString()}
+                </Text>
+                <View style={{
+                    borderRadius: 999,
+                    backgroundColor: full ? Colors.successLight : Colors.warningLight,
+                    paddingHorizontal: 8, paddingVertical: 3,
+                }}>
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: full ? Colors.success : Colors.warning }}>
+                        {full ? "FULL" : "PART"}
+                    </Text>
+                </View>
+            </View>
+        </View>
+    );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function AddPaymentScreen({ role }: Props) {
     const toast = useToast();
     const { studentId } = useLocalSearchParams();
+
+    // ── State ────────────────────────────────────────────────────────────────
+    const [feeStatus, setFeeStatus] = useState<FeeStatusResult | null>(null);
+    const [loadingStatus, setLoadingStatus] = useState(true);
     const [amount, setAmount] = useState("");
     const [note, setNote] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Advanced override
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [overrideMonth, setOverrideMonth] = useState<number | undefined>();
+    const [overrideYear, setOverrideYear] = useState<number | undefined>();
     const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+    // Post-payment success modal
+    const [successData, setSuccessData] = useState<{
+        allocations: PaymentAllocation[];
+        advance: number;
+    } | null>(null);
+
     const amountRef = useRef<TextInput>(null);
 
-    const now = new Date();
-    const nowMonth = now.getMonth();
-    const nowYear = now.getFullYear();
+    // ── Load fee status ───────────────────────────────────────────────────────
+    const loadFeeStatus = useCallback(async () => {
+        setLoadingStatus(true);
+        const { data } = await getStudentFeeStatus(studentId as string);
+        if (data) {
+            setFeeStatus(data);
+            // Pre-fill amount with what's needed for the oldest pending month
+            if (data.oldestPendingMonth) {
+                setAmount(String(data.oldestPendingMonth.remaining));
+            }
+        }
+        setLoadingStatus(false);
+    }, [studentId]);
 
-    // Snap to the academic period: if today is Apr/May (off-session) → June.
-    // Jan–Mar belong to the current calendar year but the *previous* academic
-    // start year, so the payment_year stays as the calendar year of the month.
-    const [selectedMonthIndex, setSelectedMonthIndex] = useState(getDefaultAcademicMonth(now));
-    const [selectedYear, setSelectedYear] = useState(nowYear);
+    useFocusEffect(useCallback(() => { loadFeeStatus(); }, [loadFeeStatus]));
 
-    const handleAddPayment = async () => {
-        const parsed = Number(amount);
+    // ── Live preview ──────────────────────────────────────────────────────────
+    const parsed = Number(amount);
+    const preview = useMemo(() => {
+        if (!feeStatus || isNaN(parsed) || parsed <= 0) return null;
+        return computePreview(parsed, feeStatus, overrideMonth, overrideYear);
+    }, [parsed, feeStatus, overrideMonth, overrideYear]);
+
+    // ── Collect payment ────────────────────────────────────────────────────────
+    const handleCollect = async () => {
         if (!amount.trim() || isNaN(parsed) || parsed <= 0) {
             toast.warning("Invalid Amount", "Please enter a valid payment amount.");
             return;
         }
         try {
-            setLoading(true);
-            const { error } = await addPayment({
-                student_id: studentId as string,
+            setSubmitting(true);
+            const result = await collectPayment({
+                studentId: studentId as string,
                 amount: parsed,
-                payment_month: selectedMonthIndex + 1, // 1-based
-                payment_year: selectedYear,
-                note,
+                overrideMonth,
+                overrideYear,
+                note: note.trim() || undefined,
             });
-            if (error) {
-                toast.error("Payment Failed", error.message);
+
+            if (result.error) {
+                toast.error("Payment Failed", result.error);
                 return;
             }
-            toast.success("Payment Recorded", "Payment has been saved successfully.");
-            router.back();
+
+            setSuccessData({ allocations: result.allocations, advance: result.advanceAdded });
         } catch {
-            toast.error("Network Error", "Failed to add payment. Please try again.");
+            toast.error("Network Error", "Failed to record payment. Please try again.");
         } finally {
-            setLoading(false);
+            setSubmitting(false);
         }
     };
 
-    // Build year options: current academic year and previous
-    const yearOptions = [selectedYear - 1, selectedYear, selectedYear + 1];
+    const handleSuccessClose = () => {
+        setSuccessData(null);
+        router.back();
+    };
 
+    // ── Derived display values ────────────────────────────────────────────────
+    const payingForLabel = overrideMonth && overrideYear
+        ? `${MONTHS[overrideMonth - 1]} ${overrideYear} (override)`
+        : feeStatus?.oldestPendingMonth
+            ? `${MONTHS[(feeStatus.oldestPendingMonth.month) - 1]} ${feeStatus.oldestPendingMonth.year} (auto)`
+            : "No pending month";
+
+    const outstandingTone = (feeStatus?.totalOutstanding || 0) > 0 ? "danger" : "success";
+
+    // ── Render: loading ───────────────────────────────────────────────────────
+    if (loadingStatus) {
+        return (
+            <ScreenWrapper>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <Text style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 14 }}>
+                        Loading student fee details...
+                    </Text>
+                </View>
+            </ScreenWrapper>
+        );
+    }
+
+    // ── Render: main ──────────────────────────────────────────────────────────
     return (
         <ScreenWrapper>
             <ScrollView
@@ -103,10 +274,30 @@ export default function AddPaymentScreen({ role }: Props) {
             >
                 {/* ── Header ── */}
                 <PageHeader
-                    title="Record Payment"
-                    subtitle={`${MONTHS[selectedMonthIndex]} ${selectedYear}`}
+                    title="Collect Payment"
+                    subtitle={feeStatus?.studentName ?? "Student"}
                     showBack
                 />
+
+                {/* ── Student Info Strip ── */}
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                    <InfoPill
+                        label="Monthly Fee"
+                        value={`₹${(feeStatus?.monthlyFee || 0).toLocaleString()}`}
+                    />
+                    <InfoPill
+                        label="Outstanding"
+                        value={`₹${(feeStatus?.totalOutstanding || 0).toLocaleString()}`}
+                        tone={outstandingTone}
+                    />
+                    {(feeStatus?.advanceBalance || 0) > 0 && (
+                        <InfoPill
+                            label="Advance"
+                            value={`₹${feeStatus!.advanceBalance.toLocaleString()}`}
+                            tone="success"
+                        />
+                    )}
+                </View>
 
                 {/* ── Amount Entry Hero Card ── */}
                 <Pressable
@@ -124,35 +315,12 @@ export default function AddPaymentScreen({ role }: Props) {
                     accessibilityRole="button"
                     accessibilityLabel="Tap to enter amount"
                 >
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: "700",
-                            letterSpacing: 1.5,
-                            textTransform: "uppercase",
-                            color: "rgba(255,255,255,0.6)",
-                            marginBottom: 12,
-                        }}
-                    >
+                    <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(255,255,255,0.6)", marginBottom: 12 }}>
                         Amount Received
                     </Text>
 
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <Text
-                            style={{
-                                fontSize: 42,
-                                fontWeight: "800",
-                                color: "rgba(255,255,255,0.5)",
-                                marginRight: 4,
-                                lineHeight: 52,
-                            }}
-                        >
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 42, fontWeight: "800", color: "rgba(255,255,255,0.5)", marginRight: 4, lineHeight: 52 }}>
                             ₹
                         </Text>
                         <TextInput
@@ -162,59 +330,23 @@ export default function AddPaymentScreen({ role }: Props) {
                             placeholder="0"
                             placeholderTextColor="rgba(255,255,255,0.35)"
                             keyboardType="numeric"
-                            style={{
-                                fontSize: 52,
-                                fontWeight: "900",
-                                color: Colors.textOnDark,
-                                minWidth: 60,
-                                letterSpacing: -1,
-                            }}
+                            style={{ fontSize: 52, fontWeight: "900", color: Colors.textOnDark, minWidth: 60, letterSpacing: -1 }}
                         />
                     </View>
 
-                    <View
-                        style={{
-                            marginTop: 16,
-                            height: 1,
-                            width: "100%",
-                            backgroundColor: "rgba(255,255,255,0.2)",
-                        }}
-                    />
-                    <Text
-                        style={{
-                            marginTop: 10,
-                            fontSize: 12,
-                            color: "rgba(255,255,255,0.55)",
-                        }}
-                    >
-                        Tap to enter amount in rupees
-                    </Text>
+                    {/* Paying for label */}
+                    <View style={{ marginTop: 16, height: 1, width: "100%", backgroundColor: "rgba(255,255,255,0.2)" }} />
+                    <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.65)" />
+                        <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                            Paying for: {payingForLabel}
+                        </Text>
+                    </View>
                 </Pressable>
 
                 {/* ── Quick Amount Chips ── */}
-                <View
-                    style={[
-                        {
-                            backgroundColor: Colors.card,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 16,
-                            borderWidth: 1,
-                            borderColor: Colors.cardBorderLight,
-                        },
-                        Shadows.card,
-                    ]}
-                >
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: "700",
-                            letterSpacing: 1.5,
-                            textTransform: "uppercase",
-                            color: Colors.textMuted,
-                            marginBottom: 12,
-                        }}
-                    >
+                <View style={[{ backgroundColor: Colors.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.cardBorderLight }, Shadows.card]}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase", color: Colors.textMuted, marginBottom: 12 }}>
                         Quick Select
                     </Text>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -236,161 +368,74 @@ export default function AddPaymentScreen({ role }: Props) {
                                     accessibilityRole="button"
                                     accessibilityLabel={`Set amount to ₹${q}`}
                                 >
-                                    <Text
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: "700",
-                                            color: isSelected ? Colors.primary : Colors.textSecondary,
-                                        }}
-                                    >
+                                    <Text style={{ fontSize: 13, fontWeight: "700", color: isSelected ? Colors.primary : Colors.textSecondary }}>
                                         ₹{q}
                                     </Text>
                                 </Pressable>
                             );
                         })}
+                        {/* Full payment shortcut */}
+                        {(feeStatus?.oldestPendingMonth?.remaining || 0) > 0 && !QUICK_AMOUNTS.includes(String(feeStatus?.oldestPendingMonth?.remaining)) && (
+                            <Pressable
+                                onPress={() => setAmount(String(feeStatus?.oldestPendingMonth?.remaining))}
+                                style={({ pressed }) => ({
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 9,
+                                    borderRadius: 999,
+                                    borderWidth: 1.5,
+                                    borderColor: amount === String(feeStatus?.oldestPendingMonth?.remaining) ? Colors.primary : Colors.successBorder,
+                                    backgroundColor: amount === String(feeStatus?.oldestPendingMonth?.remaining) ? Colors.primaryLight : Colors.successLight,
+                                    opacity: pressed ? 0.75 : 1,
+                                })}
+                                accessibilityRole="button"
+                                accessibilityLabel="Pay full pending amount"
+                            >
+                                <Text style={{ fontSize: 13, fontWeight: "700", color: Colors.success }}>
+                                    ₹{feeStatus?.oldestPendingMonth?.remaining.toLocaleString()} (due)
+                                </Text>
+                            </Pressable>
+                        )}
                     </View>
                 </View>
 
-                {/* ── Payment Period ── */}
-                <View
-                    style={[
-                        {
-                            backgroundColor: Colors.card,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 16,
-                            borderWidth: 1,
-                            borderColor: Colors.cardBorderLight,
-                        },
-                        Shadows.card,
-                    ]}
-                >
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: "700",
-                            letterSpacing: 1.5,
-                            textTransform: "uppercase",
-                            color: Colors.textMuted,
-                            marginBottom: 14,
-                        }}
-                    >
-                        Payment Period
-                    </Text>
-                    <View style={{ flexDirection: "row", gap: 12 }}>
-                        {/* Month selector */}
-                        <Pressable
-                            onPress={() => setShowMonthPicker(true)}
-                            style={({ pressed }) => ({
-                                flex: 1,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                backgroundColor: Colors.primaryLight,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: Colors.primaryBorder,
-                                padding: 12,
-                                gap: 10,
-                                opacity: pressed ? 0.8 : 1,
-                            })}
-                            accessibilityRole="button"
-                            accessibilityLabel="Select payment month"
-                        >
-                            <View
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 10,
-                                    backgroundColor: Colors.primary,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Ionicons name="calendar-outline" size={16} color="white" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 11, color: Colors.primary, fontWeight: "500" }}>
-                                    Month
-                                </Text>
-                                <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.primary, marginTop: 1 }}>
-                                    {MONTHS[selectedMonthIndex]}
+                {/* ── Live Payment Preview ── */}
+                {preview && preview.allocations.length > 0 && (
+                    <View style={[{ backgroundColor: Colors.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.cardBorderLight }, Shadows.card]}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase", color: Colors.textMuted, marginBottom: 12 }}>
+                            Payment Summary
+                        </Text>
+                        {preview.allocations.map((alloc, idx) => (
+                            <AllocationRow
+                                key={`${alloc.month}-${alloc.year}-${idx}`}
+                                month={alloc.month}
+                                year={alloc.year}
+                                give={alloc.give}
+                                needed={alloc.needed}
+                            />
+                        ))}
+                        {preview.advance > 0 && (
+                            <View style={{ flexDirection: "row", alignItems: "center", paddingTop: 8, gap: 6 }}>
+                                <Ionicons name="arrow-forward-circle-outline" size={16} color={Colors.primary} />
+                                <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: "700" }}>
+                                    ₹{preview.advance.toLocaleString()} will be added as advance credit
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-down" size={14} color={Colors.primary} />
-                        </Pressable>
-
-                        {/* Year: display only — change via month picker modal */}
-                        <View
-                            style={{
-                                flex: 1,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                backgroundColor: Colors.primaryLight,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: Colors.primaryBorder,
-                                padding: 12,
-                                gap: 10,
-                            }}
-                        >
-                            <View
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 10,
-                                    backgroundColor: Colors.primary,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Ionicons name="time-outline" size={16} color="white" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 11, color: Colors.primary, fontWeight: "500" }}>
-                                    Year
-                                </Text>
-                                <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.primary, marginTop: 1 }}>
-                                    {selectedYear}
-                                </Text>
-                            </View>
+                        )}
+                        {/* Remaining outstanding after this payment */}
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.cardBorderLight, flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: "600" }}>Remaining Due After Payment</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.textPrimary }}>
+                                ₹{Math.max(0, (feeStatus?.totalOutstanding || 0) - parsed).toLocaleString()}
+                            </Text>
                         </View>
                     </View>
-                </View>
+                )}
 
                 {/* ── Note ── */}
-                <View
-                    style={[
-                        {
-                            backgroundColor: Colors.card,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 24,
-                            borderWidth: 1,
-                            borderColor: Colors.cardBorderLight,
-                        },
-                        Shadows.card,
-                    ]}
-                >
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: "700",
-                            letterSpacing: 1.5,
-                            textTransform: "uppercase",
-                            color: Colors.textMuted,
-                            marginBottom: 12,
-                        }}
-                    >
+                <View style={[{ backgroundColor: Colors.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.cardBorderLight }, Shadows.card]}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase", color: Colors.textMuted, marginBottom: 12 }}>
                         Note{" "}
-                        <Text
-                            style={{
-                                textTransform: "none",
-                                letterSpacing: 0,
-                                fontSize: 11,
-                                color: Colors.textDisabled,
-                                fontWeight: "400",
-                            }}
-                        >
+                        <Text style={{ textTransform: "none", letterSpacing: 0, fontSize: 11, color: Colors.textDisabled, fontWeight: "400" }}>
                             (optional)
                         </Text>
                     </Text>
@@ -417,10 +462,78 @@ export default function AddPaymentScreen({ role }: Props) {
                     />
                 </View>
 
+                {/* ── Advanced Override ── */}
+                <Pressable
+                    onPress={() => setShowAdvanced((v) => !v)}
+                    style={({ pressed }) => ({
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 12,
+                        opacity: pressed ? 0.7 : 1,
+                        alignSelf: "flex-start",
+                    })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle advanced options"
+                >
+                    <Ionicons
+                        name={showAdvanced ? "chevron-down-circle-outline" : "chevron-forward-circle-outline"}
+                        size={18}
+                        color={Colors.textSecondary}
+                    />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: Colors.textSecondary }}>
+                        Advanced: Override Payment Month
+                    </Text>
+                </Pressable>
+
+                {showAdvanced && (
+                    <View style={[{ backgroundColor: Colors.warningLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.warningBorder }, Shadows.card]}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: Colors.warning, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>
+                            ⚠ Advanced — Only change if required
+                        </Text>
+                        <Text style={{ fontSize: 12, color: Colors.warning, marginBottom: 14, lineHeight: 18 }}>
+                            By default the system auto-selects the oldest unpaid month. Only override if you need to allocate to a specific month.
+                        </Text>
+                        <Pressable
+                            onPress={() => setShowMonthPicker(true)}
+                            style={({ pressed }) => ({
+                                flexDirection: "row",
+                                alignItems: "center",
+                                backgroundColor: Colors.card,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: overrideMonth ? Colors.primary : Colors.cardBorder,
+                                padding: 14,
+                                gap: 10,
+                                opacity: pressed ? 0.8 : 1,
+                            })}
+                            accessibilityRole="button"
+                            accessibilityLabel="Select override month"
+                        >
+                            <Ionicons name="calendar-outline" size={18} color={overrideMonth ? Colors.primary : Colors.textMuted} />
+                            <Text style={{ flex: 1, fontSize: 14, fontWeight: "700", color: overrideMonth ? Colors.primary : Colors.textMuted }}>
+                                {overrideMonth
+                                    ? `${MONTHS[overrideMonth - 1]} ${overrideYear}`
+                                    : "Tap to select month"}
+                            </Text>
+                            {overrideMonth && (
+                                <Pressable
+                                    onPress={() => { setOverrideMonth(undefined); setOverrideYear(undefined); }}
+                                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 4 })}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Clear override"
+                                >
+                                    <Ionicons name="close-circle" size={18} color={Colors.danger} />
+                                </Pressable>
+                            )}
+                        </Pressable>
+                    </View>
+                )}
+
                 {/* ── Submit ── */}
                 <Pressable
-                    onPress={handleAddPayment}
-                    disabled={loading}
+                    onPress={handleCollect}
+                    disabled={submitting}
                     style={({ pressed }) => ({
                         height: 56,
                         borderRadius: 16,
@@ -429,25 +542,25 @@ export default function AddPaymentScreen({ role }: Props) {
                         justifyContent: "center",
                         flexDirection: "row",
                         gap: 8,
-                        opacity: pressed || loading ? 0.7 : 1,
+                        opacity: pressed || submitting ? 0.7 : 1,
                     })}
                     accessibilityRole="button"
-                    accessibilityLabel="Confirm payment"
+                    accessibilityLabel="Collect payment"
                 >
-                    {loading ? (
+                    {submitting ? (
                         <ActivityIndicator color={Colors.textOnDark} />
                     ) : (
                         <>
                             <Ionicons name="checkmark-circle-outline" size={20} color={Colors.textOnDark} />
                             <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textOnDark }}>
-                                Confirm Payment
+                                Collect Payment
                             </Text>
                         </>
                     )}
                 </Pressable>
             </ScrollView>
 
-            {/* ── Month Picker Modal ── */}
+            {/* ── Month Picker Modal (for override) ── */}
             <Modal
                 visible={showMonthPicker}
                 transparent
@@ -459,139 +572,140 @@ export default function AddPaymentScreen({ role }: Props) {
                     onPress={() => setShowMonthPicker(false)}
                 >
                     <Pressable
-                        style={{
-                            backgroundColor: Colors.card,
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            padding: 24,
-                            paddingBottom: 40,
-                        }}
-                        onPress={() => {}} // Prevent dismissal when tapping inside
+                        style={{ backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}
+                        onPress={() => { }}
                     >
                         {/* Handle */}
-                        <View
-                            style={{
-                                width: 40,
-                                height: 4,
-                                borderRadius: 2,
-                                backgroundColor: Colors.cardBorder,
-                                alignSelf: "center",
-                                marginBottom: 20,
-                            }}
-                        />
+                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.cardBorder, alignSelf: "center", marginBottom: 20 }} />
 
-                        <Text
-                            style={{
-                                fontSize: 18,
-                                fontWeight: "800",
-                                color: Colors.textPrimary,
-                                marginBottom: 4,
-                            }}
-                        >
-                            Select Month
+                        <Text style={{ fontSize: 18, fontWeight: "800", color: Colors.textPrimary, marginBottom: 4 }}>
+                            Override Month
                         </Text>
-                        <Text
-                            style={{
-                                fontSize: 13,
-                                color: Colors.textSecondary,
-                                marginBottom: 20,
-                            }}
-                        >
-                            Choose the month this payment applies to
+                        <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 20 }}>
+                            Select the month to allocate this payment to
                         </Text>
 
-                        {/* Month grid */}
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                            {ACADEMIC_MONTH_INDICES.map((monthIdx) => {
-                                const isSelected = selectedMonthIndex === monthIdx;
-                                const isCurrentMonth = now.getMonth() === monthIdx;
+                        {/* Show the student's actual ledger months for easy selection */}
+                        <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                            {feeStatus?.months.map((m, idx) => {
+                                const isSelected = overrideMonth === m.month && overrideYear === m.year;
+                                const statusColor =
+                                    m.status === "PAID" ? Colors.success
+                                    : m.status === "PARTIAL" ? Colors.warning
+                                    : Colors.danger;
                                 return (
                                     <Pressable
-                                        key={monthIdx}
+                                        key={idx}
                                         onPress={() => {
-                                            setSelectedMonthIndex(monthIdx);
+                                            setOverrideMonth(m.month);
+                                            setOverrideYear(m.year);
                                             setShowMonthPicker(false);
                                         }}
                                         style={({ pressed }) => ({
-                                            width: "30%",
-                                            paddingVertical: 14,
-                                            borderRadius: 12,
+                                            flexDirection: "row",
                                             alignItems: "center",
-                                            borderWidth: 1.5,
-                                            borderColor: isSelected
-                                                ? Colors.primary
-                                                : Colors.cardBorder,
-                                            backgroundColor: isSelected
-                                                ? Colors.primary
-                                                : Colors.inputBg,
+                                            paddingVertical: 12,
+                                            paddingHorizontal: 14,
+                                            borderRadius: 12,
+                                            marginBottom: 6,
+                                            backgroundColor: isSelected ? Colors.primaryLight : Colors.inputBg,
+                                            borderWidth: 1,
+                                            borderColor: isSelected ? Colors.primary : Colors.cardBorderLight,
                                             opacity: pressed ? 0.75 : 1,
                                         })}
                                         accessibilityRole="button"
-                                        accessibilityLabel={MONTHS[monthIdx]}
+                                        accessibilityLabel={`${MONTHS[m.month - 1]} ${m.year}`}
                                     >
-                                        <Text
-                                            style={{
-                                                fontSize: 13,
-                                                fontWeight: isSelected ? "800" : "600",
-                                                color: isSelected
-                                                    ? Colors.textOnDark
-                                                    : Colors.textPrimary,
-                                            }}
-                                        >
-                                            {MONTHS[monthIdx].slice(0, 3)}
-                                        </Text>
-                                        {isCurrentMonth && !isSelected && (
-                                            <View
-                                                style={{
-                                                    width: 4,
-                                                    height: 4,
-                                                    borderRadius: 2,
-                                                    backgroundColor: Colors.primary,
-                                                    marginTop: 4,
-                                                }}
-                                            />
-                                        )}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.textPrimary }}>
+                                                {MONTHS[m.month - 1]} {m.year}
+                                            </Text>
+                                            <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 1 }}>
+                                                Paid ₹{m.paid} / ₹{m.expected}
+                                            </Text>
+                                        </View>
+                                        <View style={{ borderRadius: 999, backgroundColor: m.status === "PAID" ? Colors.successLight : m.status === "PARTIAL" ? Colors.warningLight : Colors.dangerLight, paddingHorizontal: 10, paddingVertical: 4 }}>
+                                            <Text style={{ fontSize: 10, fontWeight: "800", color: statusColor }}>
+                                                {m.status}
+                                            </Text>
+                                        </View>
                                     </Pressable>
                                 );
                             })}
-                        </View>
-
-                        {/* Year switcher inside modal */}
-                        <View
-                            style={{
-                                marginTop: 20,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 20,
-                            }}
-                        >
-                            <Pressable
-                                onPress={() => setSelectedYear((y) => y - 1)}
-                                style={({ pressed }) => ({
-                                    padding: 8,
-                                    opacity: pressed ? 0.6 : 1,
-                                })}
-                                accessibilityLabel="Previous year"
-                            >
-                                <Ionicons name="chevron-back" size={20} color={Colors.primary} />
-                            </Pressable>
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
-                                {selectedYear}
-                            </Text>
-                            <Pressable
-                                onPress={() => setSelectedYear((y) => y + 1)}
-                                style={({ pressed }) => ({
-                                    padding: 8,
-                                    opacity: pressed ? 0.6 : 1,
-                                })}
-                                accessibilityLabel="Next year"
-                            >
-                                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
-                            </Pressable>
-                        </View>
+                        </ScrollView>
                     </Pressable>
                 </Pressable>
+            </Modal>
+
+            {/* ── Success Modal ── */}
+            <Modal
+                visible={!!successData}
+                transparent
+                animationType="fade"
+                onRequestClose={handleSuccessClose}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
+                    <View style={{ backgroundColor: Colors.card, borderRadius: 24, padding: 24 }}>
+                        {/* Icon */}
+                        <View style={{ alignItems: "center", marginBottom: 16 }}>
+                            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.successLight, alignItems: "center", justifyContent: "center" }}>
+                                <Ionicons name="checkmark-circle" size={42} color={Colors.success} />
+                            </View>
+                        </View>
+
+                        <Text style={{ fontSize: 22, fontWeight: "900", color: Colors.textPrimary, textAlign: "center", marginBottom: 4 }}>
+                            Payment Collected
+                        </Text>
+                        <Text style={{ fontSize: 13, color: Colors.textSecondary, textAlign: "center", marginBottom: 20 }}>
+                            {feeStatus?.studentName}
+                        </Text>
+
+                        {/* Allocations */}
+                        <View style={{ backgroundColor: Colors.inputBg, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: Colors.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+                                Paid For
+                            </Text>
+                            {successData?.allocations.map((alloc, idx) => (
+                                <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                                    <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.textPrimary }}>
+                                        {MONTHS[alloc.month - 1]} {alloc.year}
+                                    </Text>
+                                    <Text style={{ fontSize: 14, fontWeight: "800", color: Colors.success }}>
+                                        ₹{alloc.amount.toLocaleString()}
+                                    </Text>
+                                </View>
+                            ))}
+                            {(successData?.advance || 0) > 0 && (
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.cardBorderLight }}>
+                                    <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary }}>
+                                        Advance Credit
+                                    </Text>
+                                    <Text style={{ fontSize: 14, fontWeight: "800", color: Colors.primary }}>
+                                        ₹{successData?.advance.toLocaleString()}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <Pressable
+                            onPress={handleSuccessClose}
+                            style={({ pressed }) => ({
+                                height: 52,
+                                borderRadius: 14,
+                                backgroundColor: Colors.primary,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                opacity: pressed ? 0.8 : 1,
+                            })}
+                            accessibilityRole="button"
+                            accessibilityLabel="Done"
+                        >
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textOnDark }}>
+                                Done
+                            </Text>
+                        </Pressable>
+                    </View>
+                </View>
             </Modal>
         </ScreenWrapper>
     );

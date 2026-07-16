@@ -103,6 +103,7 @@ export const createStudent =
         monthly_fee,
         email,
         password,
+        effectiveFrom,
     }: {
         full_name: string;
         admission_no: string;
@@ -113,6 +114,8 @@ export const createStudent =
         monthly_fee: number;
         email: string;
         password: string;
+        /** ISO date string (YYYY-MM-DD). Defaults to the 1st of the current month. */
+        effectiveFrom?: string;
     }) => {
         // ── PRE-FLIGHT: check uniqueness BEFORE touching Supabase Auth ──────────
         // This prevents orphaned auth users when a DB constraint fails later.
@@ -198,19 +201,21 @@ export const createStudent =
         }
 
         // ── STEP 3: Create fee assignment ────────────────────────────────────────
+        // Use the provided effectiveFrom date, or default to the 1st of the
+        // current month so dues start from today's month rather than the exact
+        // creation timestamp (which could be mid-month).
+        const now = new Date();
+        const defaultEffectiveFrom = new Date(now.getFullYear(), now.getMonth(), 1)
+            .toISOString()
+            .split("T")[0];
+
         const { error: feeError } = await supabase
             .from("student_fee_assignments")
             .insert([
                 {
-                    student_id:
-                        studentData.id,
-
+                    student_id: studentData.id,
                     monthly_fee,
-
-                    effective_from:
-                        new Date()
-                            .toISOString()
-                            .split("T")[0],
+                    effective_from: effectiveFrom || defaultEffectiveFrom,
                 },
             ]);
 
@@ -230,6 +235,7 @@ export const createStudent =
 
         return { error: userError };
     };
+
 
 
 export const getStudentById = async (

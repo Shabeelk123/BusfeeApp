@@ -1,4 +1,5 @@
 import AppButton from "@/components/common/AppButton";
+import AppDrawer from "@/components/common/AppDrawer";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { Colors } from "@/constants/colors";
@@ -70,6 +71,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"monthly" | "history">("monthly");
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
 
   const fetchStudent = async () => {
     try {
@@ -85,7 +87,7 @@ export default function StudentDashboard() {
 
   const handleLogout = async () => {
     await logoutUser();
-    router.replace("/(auth)/login");
+    router.replace("/(auth)/role-select");
   };
 
   useFocusEffect(
@@ -196,9 +198,34 @@ export default function StudentDashboard() {
             marginBottom: 24,
             flexDirection: "row",
             alignItems: "flex-start",
-            justifyContent: "space-between",
           }}
         >
+          {/* Hamburger menu (top-left) */}
+          <Pressable
+            onPress={() => setShowDrawer(true)}
+            style={({ pressed }) => ({
+              width: 42,
+              height: 42,
+              borderRadius: 13,
+              backgroundColor: Colors.card,
+              borderWidth: 1,
+              borderColor: Colors.cardBorderLight,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.7 : 1,
+              marginRight: 12,
+              marginTop: 2,
+              shadowColor: "#000",
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Open menu"
+          >
+            <Ionicons name="menu-outline" size={22} color={Colors.textPrimary} />
+          </Pressable>
+
           <View style={{ flex: 1 }}>
             <Text
               style={{
@@ -214,7 +241,7 @@ export default function StudentDashboard() {
             <Text
               style={{
                 marginTop: 4,
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: "800",
                 color: Colors.textPrimary,
               }}
@@ -222,7 +249,7 @@ export default function StudentDashboard() {
             >
               {student.full_name}
             </Text>
-            <View style={{ marginTop: 12, flexDirection: "row", gap: 8 }}>
+            <View style={{ marginTop: 10, flexDirection: "row", gap: 8 }}>
               <View
                 style={{
                   flexDirection: "row",
@@ -280,15 +307,6 @@ export default function StudentDashboard() {
                 </Text>
               </View>
             </View>
-          </View>
-          <View style={{ marginLeft: 12 }}>
-            <AppButton
-              label="Sign Out"
-              onPress={() => setShowLogoutDialog(true)}
-              variant="danger"
-              size="sm"
-              iconLeft="log-out-outline"
-            />
           </View>
         </View>
 
@@ -751,6 +769,37 @@ export default function StudentDashboard() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <AppDrawer
+        visible={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        userName={student?.full_name}
+        userRole="Student"
+        items={[
+          {
+            id: "about",
+            icon: "information-circle-outline",
+            label: "About",
+            sublabel: "App info & version",
+            onPress: () => router.push("/about"),
+          },
+          {
+            id: "privacy",
+            icon: "shield-checkmark-outline",
+            label: "Privacy Policy",
+            sublabel: "busfeeapp.netlify.app",
+            onPress: () => router.push("/privacy-policy"),
+          },
+          {
+            id: "signout",
+            icon: "log-out-outline",
+            label: "Sign Out",
+            sublabel: "Return to login screen",
+            onPress: () => setShowLogoutDialog(true),
+            variant: "danger",
+          },
+        ]}
+      />
 
       <ConfirmDialog
         visible={showLogoutDialog}

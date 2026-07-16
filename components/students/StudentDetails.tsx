@@ -184,16 +184,21 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     }
 
     const monthlyFee = student?.student_fee_assignments?.[0]?.monthly_fee || 0;
+    const effectiveFrom = student?.student_fee_assignments?.[0]?.effective_from;
+
     const feeSummary = calculateFeeBalance({
         monthlyFee,
         transactions: student?.fee_transactions || [],
         joinDate: student.created_at,
+        effectiveFrom,
     });
     const monthlyStatus = generateMonthlyFeeStatus({
         monthlyFee,
         joinDate: student.created_at,
+        effectiveFrom,
         transactions: student?.fee_transactions || [],
     });
+
     const classParts = splitClassName(student.class_name);
     const displayClass = classParts.classLevel;
     const dueTone = feeSummary.dueAmount > 0 ? "danger" : "success";

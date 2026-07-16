@@ -1,68 +1,116 @@
-import { ScrollView, Text, View } from "react-native";
-import ScreenWrapper from "../components/common/ScreenWrapper";
+import { Ionicons } from "@expo/vector-icons";
+import { useState } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+import { WebView } from "react-native-webview";
+
+import PageHeader from "@/components/common/PageHeader";
+import ScreenWrapper from "@/components/common/ScreenWrapper";
+import { Colors } from "@/constants/colors";
+
+const PRIVACY_POLICY_URL = "https://busfeeapp.netlify.app";
 
 export default function PrivacyPolicyScreen() {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
     return (
         <ScreenWrapper>
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <Text className="mb-2 text-3xl font-bold text-slate-900">
-                    Privacy Policy
-                </Text>
+            <PageHeader
+                title="Privacy Policy"
+                subtitle={PRIVACY_POLICY_URL}
+                showBack
+            />
 
-                <Text className="mb-6 text-slate-500">
-                    Last Updated: July 2026
-                </Text>
+            <View style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}>
+                {loading && !error && (
+                    <View
+                        style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: Colors.background,
+                            zIndex: 10,
+                        }}
+                    >
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                        <Text
+                            style={{
+                                marginTop: 12,
+                                fontSize: 13,
+                                color: Colors.textSecondary,
+                            }}
+                        >
+                            Loading Privacy Policy…
+                        </Text>
+                    </View>
+                )}
 
-                <Section
-                    title="Information We Collect"
-                    content="BusFee Tracker collects student, parent, teacher, and fee-related information necessary for school transport fee management."
-                />
-
-                <Section
-                    title="How We Use Information"
-                    content="We use the information solely for managing students, teachers, fee collection, reports, and school administration activities."
-                />
-
-                <Section
-                    title="Data Storage"
-                    content="All data is securely stored using Supabase cloud services and is accessible only to authorized school administrators and teachers."
-                />
-
-                <Section
-                    title="Data Sharing"
-                    content="We do not sell, rent, or share personal information with third parties except as required by law."
-                />
-
-                <Section
-                    title="Security"
-                    content="We use authentication, access controls, and industry-standard security measures to protect stored information."
-                />
-
-                <Section
-                    title="Contact"
-                    content="For privacy-related questions, contact your school administrator."
-                />
-            </ScrollView>
+                {error ? (
+                    <View
+                        style={{
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 32,
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 64,
+                                height: 64,
+                                borderRadius: 20,
+                                backgroundColor: Colors.dangerLight,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginBottom: 16,
+                            }}
+                        >
+                            <Ionicons
+                                name="wifi-outline"
+                                size={32}
+                                color={Colors.danger}
+                            />
+                        </View>
+                        <Text
+                            style={{
+                                fontSize: 18,
+                                fontWeight: "800",
+                                color: Colors.textPrimary,
+                                textAlign: "center",
+                            }}
+                        >
+                            Unable to Load
+                        </Text>
+                        <Text
+                            style={{
+                                fontSize: 13,
+                                color: Colors.textSecondary,
+                                textAlign: "center",
+                                marginTop: 8,
+                                lineHeight: 20,
+                            }}
+                        >
+                            Please check your internet connection and try again.
+                        </Text>
+                    </View>
+                ) : (
+                    <WebView
+                        source={{ uri: PRIVACY_POLICY_URL }}
+                        onLoadStart={() => { setLoading(true); setError(false); }}
+                        onLoadEnd={() => setLoading(false)}
+                        onError={() => { setLoading(false); setError(true); }}
+                        style={{ flex: 1, backgroundColor: Colors.background }}
+                        showsVerticalScrollIndicator={false}
+                        allowsInlineMediaPlayback
+                        javaScriptEnabled
+                        domStorageEnabled
+                    />
+                )}
+            </View>
         </ScreenWrapper>
-    );
-}
-
-function Section({
-    title,
-    content,
-}: {
-    title: string;
-    content: string;
-}) {
-    return (
-        <View className="mb-6">
-            <Text className="mb-2 text-lg font-bold text-slate-900">
-                {title}
-            </Text>
-
-            <Text className="leading-6 text-slate-600">
-                {content}
-            </Text>
-        </View>
     );
 }
