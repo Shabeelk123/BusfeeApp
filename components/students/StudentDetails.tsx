@@ -22,7 +22,7 @@ import ScreenWrapper from "../common/ScreenWrapper";
 import { useToast } from "../common/ToastContext";
 
 interface Props {
-    role: "ADMIN" | "TEACHER";
+    role: "ADMIN" | "CLASS";
     baseRoute: "/(admin)" | "/(teacher)";
 }
 

@@ -1,7 +1,7 @@
 import AddPaymentScreen from "../../../components/payments/AddPaymentScreen";
 
-export default function TeacherAddPayment() {
+export default function ClassAddPayment() {
     return (
-        <AddPaymentScreen role="TEACHER" />
+        <AddPaymentScreen role="CLASS" />
     );
-}
+}

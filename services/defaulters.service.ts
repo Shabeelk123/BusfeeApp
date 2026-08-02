@@ -1,103 +1,60 @@
 import { supabase } from "../lib/supabase";
-import { buildMonthLedger } from "../utils/monthlyFeeStatus";
 
 /**
- * Returns students who have any outstanding balance for the current month
- * (or any prior unpaid month), respecting each student's effective_from date.
+ * Returns students who have any outstanding balance (Pending or Partial)
+ * for a given month/year, filtered by grade/division if provided.
  *
- * A student is a "defaulter" if:
- *   - Their effective_from date is on or before the current month, AND
- *   - They have an unpaid/partially-paid month anywhere in their ledger
+ * V2: queries student_monthly_fees directly — no computed ledger needed.
  */
 export const getCurrentMonthDefaulters = async ({
-    selectedClass = "ALL",
+    gradeId,
+    divisionId,
 }: {
-    selectedClass?: string;
-}) => {
-    const now = new Date();
+    gradeId?: string;
+    divisionId?: string;
+} = {}) => {
+    const now          = new Date();
     const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const currentYear  = now.getFullYear();
 
-    // ── Fetch students with fee assignments and all transactions ──────────────
     let query = supabase
-        .from("students")
+        .from("student_monthly_fees")
         .select(`
             id,
-            full_name,
-            class_name,
-            phone,
-            created_at,
-            student_fee_assignments (
+            month,
+            year,
+            fee,
+            paid_amount,
+            status,
+            student:students (
+                id,
+                name,
+                admission_no,
+                grade_id,
+                division_id,
                 monthly_fee,
-                effective_from
-            ),
-            fee_transactions (
-                amount,
-                payment_month,
-                payment_year
+                grade:grades(id, name),
+                division:divisions(id, name)
             )
-        `);
+        `)
+        .in("status", ["Pending", "Partial"])
+        .eq("month", currentMonth)
+        .eq("year", currentYear);
 
-    if (selectedClass !== "ALL") {
-        query = query.eq("class_name", selectedClass);
+    const { data, error } = await query;
+
+    if (error) return { data: [], error };
+
+    // Apply grade/division filters on joined student data
+    let results = (data as any[]) ?? [];
+
+    if (gradeId) {
+        results = results.filter((r: any) => r.student?.grade_id === gradeId);
     }
 
-    const { data: students, error: studentsError } = await query;
-
-    if (studentsError) {
-        return { data: [], error: studentsError };
+    if (divisionId) {
+        results = results.filter((r: any) => r.student?.division_id === divisionId);
     }
 
-    const defaulters: any[] = [];
-
-    for (const student of students || []) {
-        const s = student as any;
-        const assignment = s.student_fee_assignments?.[0];
-        if (!assignment) continue;
-
-        const monthlyFee = Number(assignment.monthly_fee || 0);
-        if (monthlyFee <= 0) continue;
-
-        const effectiveFrom: string = assignment.effective_from || s.created_at;
-        const transactions: any[] = s.fee_transactions || [];
-
-        // Build ledger from effective_from to current month
-        const ledger = buildMonthLedger({
-            monthlyFee,
-            effectiveFrom,
-            joinDate: s.created_at,
-            transactions,
-        });
-
-        // Calculate totals
-        const totalPaid = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-        const totalDue = ledger.reduce((sum, e) => sum + Math.max(0, e.expected - e.paid), 0);
-
-        if (totalDue <= 0) continue; // No outstanding balance
-
-        // Find the oldest unpaid month for display
-        const oldestUnpaid = ledger.find((m) => m.status !== "PAID");
-
-        // Find this current month's specific status
-        const currentMonthEntry = ledger.find(
-            (m) => m.month === currentMonth && m.year === currentYear
-        );
-
-        defaulters.push({
-            ...s,
-            monthlyFee,
-            paid: totalPaid,
-            pending: totalDue,
-            oldestUnpaidMonth: oldestUnpaid
-                ? { month: oldestUnpaid.month, year: oldestUnpaid.year }
-                : null,
-            currentMonthPaid: currentMonthEntry?.paid || 0,
-            currentMonthStatus: currentMonthEntry?.status || "PENDING",
-        });
-    }
-
-    return {
-        data: defaulters,
-        error: null,
-    };
+    return { data: results, error: null };
 };

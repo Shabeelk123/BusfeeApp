@@ -1,10 +1,10 @@
 import StudentDetails from "../../../components/students/StudentDetails";
 
-export default function TeacherStudentDetails() {
+export default function ClassStudentDetails() {
     return (
         <StudentDetails
-            role="TEACHER"
+            role="CLASS"
             baseRoute="/(teacher)"
         />
     );
-}
+}

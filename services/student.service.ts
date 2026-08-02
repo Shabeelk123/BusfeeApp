@@ -1,447 +1,266 @@
 import { supabase } from "../lib/supabase";
+import { Student } from "../types/student";
 
-interface CreateStudentPayload {
-    full_name: string;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-    admission_no: string;
-
-    parent_name: string;
-
-    phone: string;
-
-    class_name: string;
-
-    bus_route: string;
-
-    monthly_fee: number;
+export interface StudentWithRelations extends Student {
+    grade?: { id: string; name: string };
+    division?: { id: string; name: string };
+    student_monthly_fees?: {
+        id: string;
+        month: number;
+        year: number;
+        fee: number;
+        paid_amount: number;
+        status: string;
+    }[];
 }
 
-export const getStudents =
-    async ({
-        page = 0,
-        limit = 20,
-        search = "",
-        selectedClass = "ALL",
-    }: {
-        page?: number;
+// ─── Queries ──────────────────────────────────────────────────────────────────
 
-        limit?: number;
+/**
+ * Paginated student list with optional search and grade/division filters.
+ *
+ * Accepts both V2 (gradeId/divisionId) and V1-compat (selectedClass: "8-A") params.
+ */
+export const getStudents = async ({
+    page = 0,
+    limit = 20,
+    search = "",
+    gradeId,
+    divisionId,
+    selectedClass,   // V1 compat: "ALL" | "8-A" | "8-B" etc.
+}: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    gradeId?: string;
+    divisionId?: string;
+    selectedClass?: string;
+}) => {
+    // ── Resolve selectedClass → divisionId if supplied ────────────────────────
+    if (selectedClass && selectedClass !== "ALL" && !divisionId) {
+        const parts = selectedClass.split("-");   // ["8", "A"]
+        const gradeName = parts[0];
+        const divName   = parts[1];
 
-        search?: string;
+        if (gradeName && divName) {
+            const { data: grade } = await supabase
+                .from("grades")
+                .select("id")
+                .eq("name", gradeName)
+                .single();
 
-        selectedClass?: string;
-    }) => {
-        const from =
-            page * limit;
+            if (grade) {
+                const { data: div } = await supabase
+                    .from("divisions")
+                    .select("id")
+                    .eq("grade_id", grade.id)
+                    .eq("name", divName)
+                    .single();
 
-        const to =
-            from + limit - 1;
-
-        let query =
-            supabase
-                .from("students")
-                .select(`
-                    id,
-                    full_name,
-                    admission_no,
-                    parent_name,
-                    phone,
-                    class_name,
-                    bus_route,
-
-                    student_fee_assignments (
-                        id,
-                        monthly_fee,
-                        effective_from
-                    ),
-
-                    fee_transactions (
-                        id,
-                        amount,
-                        payment_month,
-                        payment_year
-                    )
-                `)
-                .order(
-                    "created_at",
-                    {
-                        ascending:
-                            false,
-                    }
-                )
-                .range(from, to);
-
-        // SEARCH
-        if (search.trim()) {
-            query = query.or(
-                `full_name.ilike.%${search}%,admission_no.ilike.%${search}%,class_name.ilike.%${search}%`
-            );
+                if (div) divisionId = div.id;
+            }
         }
+    }
 
-        // CLASS FILTER
-        if (
-            selectedClass !==
-            "ALL"
-        ) {
-            query = query.eq(
-                "class_name",
-                selectedClass
-            );
-        }
-
-        return await query;
-    };
-
-export const createStudent =
-    async ({
-        full_name,
-        admission_no,
-        parent_name,
-        phone,
-        class_name,
-        bus_route,
-        monthly_fee,
-        email,
-        password,
-        effectiveFrom,
-    }: {
-        full_name: string;
-        admission_no: string;
-        parent_name?: string;
-        phone?: string;
-        class_name: string;
-        bus_route?: string;
-        monthly_fee: number;
-        email: string;
-        password: string;
-        /** ISO date string (YYYY-MM-DD). Defaults to the 1st of the current month. */
-        effectiveFrom?: string;
-    }) => {
-        // ── PRE-FLIGHT: check uniqueness BEFORE touching Supabase Auth ──────────
-        // This prevents orphaned auth users when a DB constraint fails later.
-
-        // 1. Check admission number
-        const { data: existingAdmission } = await supabase
-            .from("students")
-            .select("id")
-            .eq("admission_no", admission_no.trim())
-            .maybeSingle();
-
-        if (existingAdmission) {
-            return {
-                error: {
-                    message: "admission number already exists",
-                } as any,
-            };
-        }
-
-        // 2. Check email
-        const { data: existingEmail } = await supabase
-            .from("users")
-            .select("id")
-            .eq("email", email.trim().toLowerCase())
-            .maybeSingle();
-
-        if (existingEmail) {
-            return {
-                error: {
-                    message: "already exists",
-                } as any,
-            };
-        }
-
-        // ── STEP 0: Save the current teacher/admin session. ─────────────────────
-        // supabase.auth.signUp() auto-signs-in the new student,
-        // which would replace the current session and break all
-        // subsequent DB inserts (RLS would apply to the student).
-        const { data: { session: currentSession } } =
-            await supabase.auth.getSession();
-
-        // ── STEP 1: Create auth user ─────────────────────────────────────────────
-        const {
-            data: authData,
-            error: authError,
-        } = await supabase.auth.signUp({ email, password });
-
-        if (authError || !authData.user) {
-            return { error: authError };
-        }
-
-        const authUser = authData.user;
-
-        // ── STEP 1.5: Restore the teacher/admin session immediately ─────────────
-        // so all DB inserts below run with teacher/admin permissions.
-        if (currentSession?.access_token && currentSession?.refresh_token) {
-            await supabase.auth.setSession({
-                access_token: currentSession.access_token,
-                refresh_token: currentSession.refresh_token,
-            });
-        }
-
-        // ── STEP 2: Create student record ────────────────────────────────────────
-        const {
-            data: studentData,
-            error: studentError,
-        } = await supabase
-            .from("students")
-            .insert([{
-                auth_id: authUser.id,
-                full_name,
-                admission_no,
-                parent_name,
-                phone,
-                class_name,
-                bus_route,
-            }])
-            .select()
-            .single();
-
-        if (studentError || !studentData) {
-            return { error: studentError };
-        }
-
-        // ── STEP 3: Create fee assignment ────────────────────────────────────────
-        // Use the provided effectiveFrom date, or default to the 1st of the
-        // current month so dues start from today's month rather than the exact
-        // creation timestamp (which could be mid-month).
-        const now = new Date();
-        const defaultEffectiveFrom = new Date(now.getFullYear(), now.getMonth(), 1)
-            .toISOString()
-            .split("T")[0];
-
-        const { error: feeError } = await supabase
-            .from("student_fee_assignments")
-            .insert([
-                {
-                    student_id: studentData.id,
-                    monthly_fee,
-                    effective_from: effectiveFrom || defaultEffectiveFrom,
-                },
-            ]);
-
-        if (feeError) {
-            return { error: feeError };
-        }
-
-        // ── STEP 4: Create users profile (needed for login lookup) ───────────────
-        const { error: userError } = await supabase
-            .from("users")
-            .insert([{
-                auth_id: authUser.id,
-                name: full_name,
-                email,
-                role: "STUDENT",
-            }]);
-
-        return { error: userError };
-    };
+    const from = page * limit;
+    const to   = from + limit - 1;
 
 
+    let query = supabase
+        .from("students")
+        .select(`
+            id,
+            admission_no,
+            name,
+            grade_id,
+            division_id,
+            monthly_fee,
+            user_id,
+            created_at,
+            grade:grades(id, name),
+            division:divisions(id, name)
+        `)
+        .order("name", { ascending: true })
+        .range(from, to);
 
-export const getStudentById = async (
-    id: string
-) => {
+    if (search.trim()) {
+        query = query.or(
+            `name.ilike.%${search}%,admission_no.ilike.%${search}%`
+        );
+    }
+
+    if (gradeId) {
+        query = query.eq("grade_id", gradeId);
+    }
+
+    if (divisionId) {
+        query = query.eq("division_id", divisionId);
+    }
+
+    return await query;
+};
+
+/**
+ * Single student with their monthly fee records.
+ */
+export const getStudentById = async (id: string) => {
     return await supabase
         .from("students")
         .select(`
-      *,
-      student_fee_assignments (
-        id,
-        monthly_fee,
-        effective_from
-      ),
-      fee_transactions (
-        id,
-        amount,
-        payment_month,
-        payment_year,
-        note,
-        created_at
-      )
-    `)
+            id,
+            admission_no,
+            name,
+            grade_id,
+            division_id,
+            monthly_fee,
+            user_id,
+            created_at,
+            grade:grades(id, name),
+            division:divisions(id, name),
+            student_monthly_fees (
+                id,
+                month,
+                year,
+                fee,
+                paid_amount,
+                status,
+                excluded,
+                reason
+            )
+        `)
         .eq("id", id)
         .single();
 };
 
-export const createFeeTransaction =
-    async ({
-        student_id,
-        amount,
-        payment_month,
-        payment_year,
-        note,
-    }: {
-        student_id: string;
+/**
+ * Create a student (V2).
+ * Creates Supabase Auth user + users profile row + student row.
+ */
+export const createStudent = async ({
+    name,
+    admission_no,
+    grade_id,
+    division_id,
+    monthly_fee,
+    email,
+    password,
+}: {
+    name: string;
+    admission_no: string;
+    grade_id: string;
+    division_id: string;
+    monthly_fee: number;
+    email: string;
+    password: string;
+}) => {
+    // ── Pre-flight uniqueness checks ─────────────────────────────────────────
+    const { data: existingAdm } = await supabase
+        .from("students")
+        .select("id")
+        .eq("admission_no", admission_no.trim())
+        .maybeSingle();
 
-        amount: number;
+    if (existingAdm) {
+        return { error: { message: "Admission number already exists" } as any };
+    }
 
-        payment_month: number;
+    // ── Save current session (admin/class) ───────────────────────────────────
+    const { data: { session: adminSession } } = await supabase.auth.getSession();
 
-        payment_year: number;
+    // ── Create Supabase Auth user ────────────────────────────────────────────
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+    });
 
-        note?: string;
-    }) => {
-        return await supabase
-            .from("fee_transactions")
-            .insert([
-                {
-                    student_id,
-                    amount,
-                    payment_month,
-                    payment_year,
-                    note,
-                },
-            ]);
-    };
+    if (authError || !authData.user) {
+        return { error: authError };
+    }
 
-export const updateStudent =
-    async ({
-        studentId,
-        feeAssignmentId,
-        studentData,
-        monthlyFee,
-    }: {
-        studentId: string;
+    const authUser = authData.user;
 
-        feeAssignmentId?: string;
+    // ── Restore admin/class session immediately ───────────────────────────────
+    if (adminSession?.access_token && adminSession?.refresh_token) {
+        await supabase.auth.setSession({
+            access_token: adminSession.access_token,
+            refresh_token: adminSession.refresh_token,
+        });
+    }
 
-        studentData: any;
+    // ── Create users profile row (V2: id = auth.uid()) ───────────────────────
+    const { error: userError } = await supabase.from("users").insert([{
+        id:   authUser.id,   // V2: PK = auth UID
+        name,
+        role: "STUDENT",
+    }]);
 
-        monthlyFee: number;
-    }) => {
-        // STEP 1
-        // Update student
-        const {
-            error: studentError,
-        } = await supabase
-            .from("students")
-            .update(studentData)
-            .eq("id", studentId);
+    if (userError) return { error: userError };
 
-        if (studentError) {
-            return {
-                error: studentError,
-            };
-        }
+    // ── Create student row ────────────────────────────────────────────────────
+    const { data: student, error: studentError } = await supabase
+        .from("students")
+        .insert([{
+            name,
+            admission_no,
+            grade_id,
+            division_id,
+            monthly_fee,
+            user_id: authUser.id,
+        }])
+        .select()
+        .single();
 
-        // STEP 2
-        // Update existing fee assignment
-        if (feeAssignmentId) {
-            const {
-                error: feeError,
-            } = await supabase
-                .from(
-                    "student_fee_assignments"
-                )
-                .update({
-                    monthly_fee:
-                        monthlyFee,
-                })
-                .eq(
-                    "id",
-                    feeAssignmentId
-                );
+    if (studentError) return { error: studentError };
 
-            return {
-                error: feeError,
-            };
-        }
+    return { data: student, error: null };
+};
 
-        // STEP 3
-        // Create fee assignment if missing
-        const {
-            error: createFeeError,
-        } = await supabase
-            .from(
-                "student_fee_assignments"
+/**
+ * Update student fields.
+ */
+export const updateStudent = async (
+    studentId: string,
+    updates: Partial<Pick<Student, "name" | "admission_no" | "grade_id" | "division_id" | "monthly_fee">>
+) => {
+    return await supabase
+        .from("students")
+        .update(updates)
+        .eq("id", studentId);
+};
+
+/**
+ * Delete a student row.
+ * Note: associated Supabase Auth user is NOT deleted here (admin action).
+ */
+export const deleteStudent = async (id: string) => {
+    return await supabase.from("students").delete().eq("id", id);
+};
+
+/**
+ * Fetch the currently signed-in student's own record.
+ */
+export const getCurrentStudent = async () => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUser = sessionData?.session?.user;
+    if (!authUser) return { data: null };
+
+    return await supabase
+        .from("students")
+        .select(`
+            *,
+            grade:grades(id, name),
+            division:divisions(id, name),
+            student_monthly_fees (
+                id,
+                month,
+                year,
+                fee,
+                paid_amount,
+                status
             )
-            .insert([
-                {
-                    student_id:
-                        studentId,
-
-                    monthly_fee:
-                        monthlyFee,
-
-                    effective_from:
-                        new Date()
-                            .toISOString()
-                            .split(
-                                "T"
-                            )[0],
-                },
-            ]);
-
-        return {
-            error:
-                createFeeError,
-        };
-    };
-
-export const deleteStudent =
-    async (id: string) => {
-        return await supabase
-            .from("students")
-            .delete()
-            .eq("id", id);
-    };
-
-export const getTeacherStudents =
-    async (
-        assignedClass: string
-    ) => {
-        return await supabase
-            .from("students")
-            .select(`
-        *,
-        student_fee_assignments (
-          monthly_fee
-        ),
-        fee_transactions (
-          amount,
-          payment_month,
-          payment_year
-        )
-      `)
-            .eq(
-                "class_name",
-                assignedClass
-            )
-            .order("created_at", {
-                ascending: false,
-            });
-    };
-
-export const getCurrentStudent =
-    async () => {
-        const {
-            data: sessionData,
-        } =
-            await supabase.auth.getSession();
-
-        const authUser =
-            sessionData?.session?.user;
-
-        if (!authUser) {
-            return {
-                data: null,
-            };
-        }
-
-        return await supabase
-            .from("students")
-            .select(`
-        *,
-        student_fee_assignments (
-          monthly_fee
-        ),
-        fee_transactions (
-          *
-        )
-      `)
-            .eq(
-                "auth_id",
-                authUser.id
-            )
-            .single();
-    };
+        `)
+        .eq("user_id", authUser.id)
+        .single();
+};

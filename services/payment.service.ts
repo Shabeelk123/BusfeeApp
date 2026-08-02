@@ -1,292 +1,196 @@
 import { supabase } from "../lib/supabase";
-import { buildMonthLedger, calcAdvanceFromLedger, MonthEntry } from "../utils/monthlyFeeStatus";
+import { FeeStatus } from "../types/fee";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface FeeStatusResult {
-    studentId: string;
-    studentName: string;
-    monthlyFee: number;
-    effectiveFrom: string;
-    feeAssignmentId: string | null;
-    transactions: {
-        id: string;
-        amount: number;
-        payment_month: number;
-        payment_year: number;
-        note?: string;
-        created_at: string;
-    }[];
-    /** Full chronological ledger from effective_from to today */
-    months: MonthEntry[];
-    /** Oldest month that is still PENDING or PARTIAL, or null if all paid / in advance */
-    oldestPendingMonth: { month: number; year: number; remaining: number } | null;
-    /** Total rupees still owed across all months */
-    totalOutstanding: number;
-    /** Advance credit if student has overpaid */
-    advanceBalance: number;
-}
-
-export interface PaymentAllocation {
-    month: number;
-    year: number;
-    amount: number;
-    /** true = this allocation fully settles the month */
-    fullyCovered: boolean;
-}
-
-export interface CollectPaymentResult {
-    allocations: PaymentAllocation[];
-    advanceAdded: number;
-    error?: string;
-}
-
-// ─── getStudentFeeStatus ──────────────────────────────────────────────────────
+// ─── Fee Status ───────────────────────────────────────────────────────────────
 
 /**
- * Returns a complete fee picture for a student:
- *   - month-by-month ledger
- *   - oldest unpaid month
- *   - total outstanding
- * This is called by the payment screen on load.
+ * Get or create the student_monthly_fees record for a given student/month/year.
+ * Returns the fee record with all transactions.
  */
-export const getStudentFeeStatus = async (
-    studentId: string
-): Promise<{ data: FeeStatusResult | null; error: any }> => {
-    const { data: student, error } = await supabase
-        .from("students")
+export const getStudentMonthFee = async (
+    studentId: string,
+    month: number,
+    year: number
+) => {
+    return await supabase
+        .from("student_monthly_fees")
         .select(`
             id,
-            full_name,
-            created_at,
-            student_fee_assignments (
-                id,
-                monthly_fee,
-                effective_from
-            ),
+            student_id,
+            month,
+            year,
+            fee,
+            paid_amount,
+            status,
+            excluded,
+            reason,
             fee_transactions (
                 id,
                 amount,
-                payment_month,
-                payment_year,
-                note,
+                payment_date,
+                collected_by,
+                remarks,
                 created_at
             )
         `)
-        .eq("id", studentId)
-        .single();
-
-    if (error || !student) {
-        return { data: null, error };
-    }
-
-    const assignment = (student as any).student_fee_assignments?.[0];
-    const monthlyFee = Number(assignment?.monthly_fee || 0);
-    const effectiveFrom: string = assignment?.effective_from || (student as any).created_at;
-
-    const transactions: any[] = (student as any).fee_transactions || [];
-
-    // Build ledger up to current month
-    const months = buildMonthLedger({
-        monthlyFee,
-        effectiveFrom,
-        joinDate: (student as any).created_at,
-        transactions,
-    });
-
-    // Oldest pending / partial month
-    const pendingEntry = months.find((m) => m.status !== "PAID");
-    const oldestPendingMonth = pendingEntry
-        ? {
-              month: pendingEntry.month,
-              year: pendingEntry.year,
-              remaining: pendingEntry.expected - pendingEntry.paid,
-          }
-        : null;
-
-    const totalOutstanding = months.reduce(
-        (sum, m) => sum + Math.max(0, m.expected - m.paid),
-        0
-    );
-
-    const totalPaid = transactions.reduce((s, t) => s + Number(t.amount), 0);
-    const advanceBalance = calcAdvanceFromLedger(months, totalPaid);
-
-    return {
-        data: {
-            studentId,
-            studentName: (student as any).full_name,
-            monthlyFee,
-            effectiveFrom,
-            feeAssignmentId: assignment?.id ?? null,
-            transactions,
-            months,
-            oldestPendingMonth,
-            totalOutstanding,
-            advanceBalance,
-        },
-        error: null,
-    };
+        .eq("student_id", studentId)
+        .eq("month", month)
+        .eq("year", year)
+        .maybeSingle();
 };
 
-// ─── collectPayment ────────────────────────────────────────────────────────────
+/**
+ * Get all monthly fee records for a student.
+ */
+export const getStudentFeeHistory = async (studentId: string) => {
+    return await supabase
+        .from("student_monthly_fees")
+        .select(`
+            id,
+            month,
+            year,
+            fee,
+            paid_amount,
+            status,
+            excluded,
+            reason,
+            fee_transactions (
+                id,
+                amount,
+                payment_date,
+                remarks
+            )
+        `)
+        .eq("student_id", studentId)
+        .order("year", { ascending: false })
+        .order("month", { ascending: false });
+};
+
+// ─── Payment Collection ───────────────────────────────────────────────────────
 
 /**
- * Waterfall payment allocation engine.
+ * Record a payment for a student's monthly fee.
  *
- * Algorithm:
- *  1. Fetch the current fee status (ledger)
- *  2. If overrideMonth/Year supplied, start waterfall from that month.
- *     Otherwise start from the oldest pending/partial month.
- *  3. Iterate chronologically, greedily filling each month:
- *       – remaining_needed = monthly_fee - already_paid_this_month
- *       – deduct from amount, record allocation
- *  4. If amount exceeds all unpaid months, apply surplus to future months
- *     (advance payments up to 12 months ahead).
- *  5. Insert one `fee_transactions` row per allocated month.
- *  6. Returns allocation breakdown for the UI confirmation card.
+ * Flow:
+ *  1. Get or create the student_monthly_fees row.
+ *  2. Insert a fee_transactions row.
+ *  3. Update paid_amount and status on student_monthly_fees.
  */
 export const collectPayment = async ({
     studentId,
+    month,
+    year,
     amount,
-    overrideMonth,
-    overrideYear,
-    note,
+    remarks,
+    collectedBy,
 }: {
     studentId: string;
+    month: number;
+    year: number;
     amount: number;
-    overrideMonth?: number;
-    overrideYear?: number;
-    note?: string;
-}): Promise<CollectPaymentResult> => {
+    remarks?: string;
+    collectedBy?: string;
+}): Promise<{ data: any; error: any }> => {
     if (amount <= 0) {
-        return { allocations: [], advanceAdded: 0, error: "Amount must be greater than zero." };
+        return { data: null, error: { message: "Amount must be greater than zero" } };
     }
 
-    // ── Fetch current state ──────────────────────────────────────────────────
-    const { data: status, error: fetchErr } = await getStudentFeeStatus(studentId);
-    if (fetchErr || !status) {
-        return { allocations: [], advanceAdded: 0, error: fetchErr?.message || "Could not fetch student fee status." };
+    // ── Step 1: Get the monthly fee record ───────────────────────────────────
+    const { data: existingSmf, error: fetchError } = await getStudentMonthFee(
+        studentId,
+        month,
+        year
+    );
+
+    if (fetchError) return { data: null, error: fetchError };
+
+    let smf = existingSmf as any;
+    let smfId: string;
+
+    if (!smf) {
+        // Get the student's current monthly_fee
+        const { data: student } = await supabase
+            .from("students")
+            .select("monthly_fee")
+            .eq("id", studentId)
+            .single();
+
+        const fee = student?.monthly_fee ?? 0;
+
+        const { data: newSmf, error: createError } = await supabase
+            .from("student_monthly_fees")
+            .insert([{ student_id: studentId, month, year, fee }])
+            .select()
+            .single();
+
+        if (createError || !newSmf) return { data: null, error: createError };
+        smf = newSmf;
     }
 
-    const { monthlyFee, effectiveFrom, transactions } = status;
+    smfId = smf.id;
 
-    // ── Build ledger that includes 12 future months for advance payments ─────
-    const today = new Date();
-    const futureEnd = new Date(today.getFullYear(), today.getMonth() + 12, 1);
-    const fullLedger = buildMonthLedger({
-        monthlyFee,
-        effectiveFrom,
-        joinDate: status.effectiveFrom,
-        transactions,
-        untilDate: futureEnd,
-    });
+    // ── Step 2: Insert fee_transaction row ───────────────────────────────────
+    const { error: txError } = await supabase.from("fee_transactions").insert([{
+        student_month_fee_id: smfId,
+        amount,
+        payment_date: new Date().toISOString().split("T")[0],
+        collected_by: collectedBy ?? null,
+        remarks: remarks ?? null,
+    }]);
 
-    // ── Find starting month ──────────────────────────────────────────────────
-    let startIndex = 0;
-    if (overrideMonth && overrideYear) {
-        const idx = fullLedger.findIndex(
-            (m) => m.month === overrideMonth && m.year === overrideYear
-        );
-        if (idx >= 0) startIndex = idx;
-    } else {
-        // Oldest pending or partial
-        const idx = fullLedger.findIndex((m) => m.status !== "PAID");
-        startIndex = idx >= 0 ? idx : fullLedger.length; // all paid → will become advance
-    }
+    if (txError) return { data: null, error: txError };
 
-    // ── Waterfall allocation ─────────────────────────────────────────────────
-    const allocations: PaymentAllocation[] = [];
-    let remaining = amount;
+    // ── Step 3: Update paid_amount and status ────────────────────────────────
+    const newPaid = (smf.paid_amount ?? 0) + amount;
+    const fee     = smf.fee ?? 0;
 
-    for (let i = startIndex; i < fullLedger.length && remaining > 0; i++) {
-        const entry = fullLedger[i];
-        const alreadyPaid = entry.paid;
-        const needed = entry.expected - alreadyPaid;
+    let status: FeeStatus = "Partial";
+    if (newPaid >= fee)  status = "Paid";
+    if (newPaid === 0)   status = "Pending";
 
-        if (needed <= 0) continue; // already fully paid
+    const { data: updated, error: updateError } = await supabase
+        .from("student_monthly_fees")
+        .update({ paid_amount: newPaid, status })
+        .eq("id", smfId)
+        .select()
+        .single();
 
-        const give = Math.min(remaining, needed);
-        remaining -= give;
-
-        allocations.push({
-            month: entry.month,
-            year: entry.year,
-            amount: give,
-            fullyCovered: give >= needed,
-        });
-    }
-
-    // Leftover = advance (went past all months in the ledger)
-    const advanceAdded = remaining;
-
-    // ── Insert fee_transactions rows ─────────────────────────────────────────
-    if (allocations.length === 0 && advanceAdded > 0) {
-        // Entire amount is advance — record as the next future month
-        const nextFutureEntry = fullLedger.find(
-            (m, i) => i >= startIndex && fullLedger[i].paid === 0
-        );
-        const targetMonth = nextFutureEntry
-            ? { month: nextFutureEntry.month, year: nextFutureEntry.year }
-            : {
-                  month: (today.getMonth() + 2 > 12 ? 1 : today.getMonth() + 2),
-                  year: (today.getMonth() + 2 > 12 ? today.getFullYear() + 1 : today.getFullYear()),
-              };
-
-        const { error: insertErr } = await supabase.from("fee_transactions").insert([{
-            student_id: studentId,
-            amount,
-            payment_month: targetMonth.month,
-            payment_year: targetMonth.year,
-            note: note || null,
-        }]);
-
-        if (insertErr) {
-            return { allocations: [], advanceAdded: 0, error: insertErr.message };
-        }
-
-        return {
-            allocations: [{ month: targetMonth.month, year: targetMonth.year, amount, fullyCovered: false }],
-            advanceAdded: amount,
-        };
-    }
-
-    // Build insert payload for each allocation
-    const rows = allocations.map((alloc, idx) => ({
-        student_id: studentId,
-        amount: alloc.amount,
-        payment_month: alloc.month,
-        payment_year: alloc.year,
-        // Only attach the note to the first row to avoid duplication
-        note: idx === 0 ? (note || null) : null,
-    }));
-
-    const { error: insertErr } = await supabase.from("fee_transactions").insert(rows);
-    if (insertErr) {
-        return { allocations: [], advanceAdded: 0, error: insertErr.message };
-    }
-
-    return { allocations, advanceAdded };
+    return { data: updated, error: updateError };
 };
 
-// ─── Legacy single-insert kept for backward compat (teacher payment screen) ──
+// ─── Exclusion ────────────────────────────────────────────────────────────────
 
-interface AddPaymentPayload {
-    student_id: string;
-    amount: number;
-    payment_month: number;
-    payment_year: number;
-    note?: string;
-}
+/**
+ * Mark a student's month as excluded (e.g. absence, scholarship).
+ */
+export const excludeStudentMonth = async (
+    studentId: string,
+    month: number,
+    year: number,
+    reason: string
+) => {
+    const { data: existing } = await getStudentMonthFee(studentId, month, year);
 
-export const addPayment = async ({
-    student_id,
-    amount,
-    payment_month,
-    payment_year,
-    note,
-}: AddPaymentPayload) => {
-    return await supabase
-        .from("fee_transactions")
-        .insert([{ student_id, amount, payment_month, payment_year, note }]);
+    if (existing) {
+        return await supabase
+            .from("student_monthly_fees")
+            .update({ status: "Excluded", excluded: true, reason })
+            .eq("id", (existing as any).id);
+    }
+
+    const { data: student } = await supabase
+        .from("students")
+        .select("monthly_fee")
+        .eq("id", studentId)
+        .single();
+
+    return await supabase.from("student_monthly_fees").insert([{
+        student_id: studentId,
+        month,
+        year,
+        fee: student?.monthly_fee ?? 0,
+        status: "Excluded",
+        excluded: true,
+        reason,
+    }]);
 };

@@ -14,7 +14,7 @@ const fetchProfile = async (authId: string) => {
     const { data: profile, error } = await supabase
         .from("users")
         .select("*")
-        .eq("auth_id", authId)
+        .eq("id", authId)   // V2: users.id = auth.uid()
         .single();
 
     return { profile, error };
@@ -26,11 +26,17 @@ const navigateByRole = (role: string) => {
         case "ADMIN":
             router.replace("/(admin)/dashboard");
             break;
-        case "TEACHER":
+        case "CLASS":
+        case "COORDINATOR":
+            // V2 roles — route to class/coordinator dashboard placeholder
             router.replace("/(teacher)/dashboard");
             break;
         case "STUDENT":
             router.replace("/(student)/dashboard");
+            break;
+        case "TEACHER":
+            // Legacy fallback: TEACHER role removed in V2
+            router.replace("/(teacher)/dashboard");
             break;
         default:
             router.replace("/(auth)/role-select");

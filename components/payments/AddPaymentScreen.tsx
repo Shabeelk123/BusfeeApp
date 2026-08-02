@@ -27,7 +27,7 @@ import { useToast } from "../common/ToastContext";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 interface Props {
-    role: "ADMIN" | "TEACHER";
+    role: "ADMIN" | "CLASS";
 }
 
 const MONTHS = [

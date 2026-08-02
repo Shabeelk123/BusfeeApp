@@ -7,7 +7,11 @@ import { useAppSelector } from "../../hooks/redux";
 export default function TeacherLayout() {
     const role = useAppSelector((state) => state.auth.role);
 
-    if (!role || role !== "TEACHER") {
+    // Allow V2 roles (CLASS, COORDINATOR) that use this group as a placeholder.
+    // TEACHER kept as legacy fallback.
+    const allowed = role === "CLASS" || role === "COORDINATOR" || role === "TEACHER";
+
+    if (!role || !allowed) {
         return <Redirect href="/(auth)/role-select" />;
     }
 

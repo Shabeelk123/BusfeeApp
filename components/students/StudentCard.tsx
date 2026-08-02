@@ -1,7 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 
 import { Colors, Shadows } from "../../constants/colors";
-import { splitClassName } from "../../utils/className";
 
 interface Props {
     student: any;
@@ -10,38 +9,29 @@ interface Props {
 
 /**
  * Returns the current-month payment status for the student card badge.
- *
- * Logic:
- * - Academic year runs June → March.
- * - "Current month" = today's calendar month + year.
- * - A student is PAID for the current month if the sum of transactions
- *   for (payment_month, payment_year) == (now.month, now.year) covers
- *   their monthly fee. Shows pending amount if partial or zero.
+ * V2: reads from student_monthly_fees array joined on the student.
  */
 function getCurrentMonthStatus(student: any): {
     isPaid: boolean;
     pendingAmount: number;
     label: string;
 } {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1; // 1-based
-    const currentYear = now.getFullYear();
+    const now          = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear  = now.getFullYear();
 
-    const monthlyFee: number =
-        student?.student_fee_assignments?.[0]?.monthly_fee || 0;
-    const transactions: any[] = student?.fee_transactions || [];
+    const monthlyFee: number = student?.monthly_fee || 0;
 
-    // Sum payments made for the current calendar month only
-    const paidThisMonth = transactions
-        .filter(
-            (t) =>
-                t.payment_month === currentMonth &&
-                t.payment_year === currentYear,
-        )
-        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+    // V2: look for a student_monthly_fees record for this month
+    const feeRecord = (student?.student_monthly_fees ?? []).find(
+        (r: any) => r.month === currentMonth && r.year === currentYear
+    );
 
-    const pending = Math.max(0, monthlyFee - paidThisMonth);
-    const isPaid = pending === 0 && monthlyFee > 0;
+    const paidAmount: number = feeRecord?.paid_amount ?? 0;
+    const status: string     = feeRecord?.status ?? "Pending";
+
+    const isPaid    = status === "Paid";
+    const pending   = Math.max(0, monthlyFee - paidAmount);
 
     return {
         isPaid,
@@ -55,15 +45,19 @@ function getCurrentMonthStatus(student: any): {
 }
 
 export default function StudentCard({ student, onPress }: Props) {
-    const monthlyFee = student?.student_fee_assignments?.[0]?.monthly_fee || 0;
-    const classParts = splitClassName(student.class_name);
+    const monthlyFee = student?.monthly_fee || 0;
+
+    // V2: grade and division come from joined relations
+    const gradeName    = student?.grade?.name    ?? "-";
+    const divisionName = student?.division?.name ?? "-";
+
     const { isPaid, label } = getCurrentMonthStatus(student);
 
     return (
         <Pressable
             onPress={onPress}
             accessibilityRole="button"
-            accessibilityLabel={`View ${student.full_name}`}
+            accessibilityLabel={`View ${student.name}`}
             style={({ pressed }) => ([
                 {
                     marginBottom: 12,
@@ -83,7 +77,7 @@ export default function StudentCard({ student, onPress }: Props) {
                         numberOfLines={1}
                         style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}
                     >
-                        {student.full_name}
+                        {student.name}
                     </Text>
                     <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 2 }}>
                         #{student.admission_no}
@@ -114,25 +108,16 @@ export default function StudentCard({ student, onPress }: Props) {
             </View>
 
             <View style={{ flexDirection: "row", gap: 12 }}>
-                <View style={{ flex: 1.1 }}>
-                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>Parent</Text>
-                    <Text
-                        numberOfLines={1}
-                        style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 1 }}
-                    >
-                        {student.parent_name || "-"}
-                    </Text>
-                </View>
                 <View style={{ flex: 0.75 }}>
-                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>Class</Text>
+                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>Grade</Text>
                     <Text numberOfLines={1} style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 1 }}>
-                        {classParts.classLevel || "-"}
+                        {gradeName}
                     </Text>
                 </View>
                 <View style={{ flex: 0.75 }}>
                     <Text style={{ fontSize: 11, color: Colors.textMuted }}>Division</Text>
                     <Text numberOfLines={1} style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 1 }}>
-                        {classParts.division || "-"}
+                        {divisionName}
                     </Text>
                 </View>
                 <View style={{ flex: 1 }}>

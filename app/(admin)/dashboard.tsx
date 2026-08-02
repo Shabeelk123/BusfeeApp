@@ -311,10 +311,10 @@ export default function DashboardScreen() {
         );
     }
 
-    const totalCollection = stats?.monthlyCollection || 0;
-    const pendingAmount   = stats?.pendingAmount    || 0;
-    const totalStudents   = stats?.totalStudents    || 0;
-    const totalTeachers   = stats?.totalTeachers    || 0;
+    const totalCollection    = stats?.monthlyCollection   || 0;
+    const pendingAmount      = stats?.pendingAmount        || 0;
+    const totalStudents      = stats?.totalStudents        || 0;
+    const totalClassAccounts = stats?.totalClassAccounts   || 0;
 
     return (
         <ScreenWrapper backgroundColor={T.background}>
@@ -369,8 +369,8 @@ export default function DashboardScreen() {
                 {/* ── Counter Tiles ── */}
                 <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
                     <CounterTile
-                        label="Active Teachers"
-                        value={totalTeachers}
+                        label="Class Accounts"
+                        value={totalClassAccounts}
                         icon="people-outline"
                         iconColor={T.success}
                         iconBg={T.successLight}
@@ -383,6 +383,7 @@ export default function DashboardScreen() {
                         iconBg={T.primaryFixed}
                     />
                 </View>
+
 
                 {/* ── Quick Actions (icon grid) ── */}
                 <View style={[S.card, { marginBottom: 20 }]}>

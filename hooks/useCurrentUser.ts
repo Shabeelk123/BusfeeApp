@@ -34,7 +34,7 @@ export default function useCurrentUser() {
                         .from("users")
                         .select("*")
                         .eq(
-                            "auth_id",
+                            "id",       // V2: users.id = auth.uid()
                             authUser.id
                         )
                         .single();

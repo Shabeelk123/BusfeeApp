@@ -20,7 +20,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { SafeAreaView } from "react-native-safe-area-context";
 
 
-type Role = "ADMIN" | "TEACHER" | "STUDENT";
+type Role = "ADMIN" | "STUDENT" | "CLASS" | "COORDINATOR";
 
 const ROLE_META: Record<
     Role,
@@ -32,17 +32,23 @@ const ROLE_META: Record<
         color: Colors.primary,
         colorLight: "#EFF6FF",
     },
-    TEACHER: {
-        label: "Teacher",
-        icon: "people",
-        color: Colors.success,
-        colorLight: "#D1FAE5",
+    CLASS: {
+        label: "Class Account",
+        icon: "school-outline",
+        color: "#0891B2",
+        colorLight: "#E0F2FE",
+    },
+    COORDINATOR: {
+        label: "Coordinator",
+        icon: "analytics-outline",
+        color: "#7C3AED",
+        colorLight: "#EDE9FE",
     },
     STUDENT: {
         label: "Student",
         icon: "school",
-        color: Colors.info,
-        colorLight: "#EDE9FE",
+        color: "#D97706",
+        colorLight: "#FEF3C7",
     },
 };
 
@@ -101,11 +107,17 @@ export default function LoginScreen() {
             const { data: profile, error: profileError } = await supabase
                 .from("users")
                 .select("*")
-                .eq("auth_id", authUser.id)
+                .eq("id", authUser.id)   // V2: users.id = auth.uid()
                 .single();
 
             if (profileError || !profile) {
-                Alert.alert("Profile Not Found", "Please contact administrator");
+                console.error("[Login] Profile fetch failed:", profileError);
+                const detail = profileError?.message ?? "No profile row found in users table";
+                Alert.alert(
+                    "Profile Not Found",
+                    `Auth succeeded but no users row found.\n\nDetail: ${detail}\n\nAuth UID: ${authUser.id}`
+                );
+                await supabase.auth.signOut();
                 return;
             }
 
@@ -124,7 +136,9 @@ export default function LoginScreen() {
             dispatch(setUser({ user: profile, role: profile.role }));
 
             if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
-            else if (profile.role === "TEACHER") router.replace("/(teacher)/dashboard");
+            // V2 roles — use teacher dashboard as placeholder until dedicated screens are built
+            else if (profile.role === "CLASS") router.replace("/(teacher)/dashboard");
+            else if (profile.role === "COORDINATOR") router.replace("/(teacher)/dashboard");
             else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Something went wrong. Please try again.");

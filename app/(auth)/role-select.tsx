@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Role = "ADMIN" | "TEACHER" | "STUDENT";
+type Role = "ADMIN" | "STUDENT" | "CLASS" | "COORDINATOR";
 
 interface RoleCard {
     role: Role;
@@ -27,29 +27,38 @@ const ROLES: RoleCard[] = [
     {
         role: "ADMIN",
         label: "Administrator",
-        subtitle: "Manage school, teachers & reports",
+        subtitle: "Manage school & reports",
         icon: "shield-checkmark",
         color: "#2563EB",
         colorLight: "#EFF6FF",
         colorBorder: "#BFDBFE",
     },
     {
-        role: "TEACHER",
-        label: "Teacher",
-        subtitle: "Manage students & fee collections",
-        icon: "people",
-        color: "#059669",
-        colorLight: "#D1FAE5",
-        colorBorder: "#A7F3D0",
+        role: "CLASS",
+        label: "Class Account",
+        subtitle: "Manage students & fee collections for your class",
+        icon: "school-outline",
+        color: "#0891B2",
+        colorLight: "#E0F2FE",
+        colorBorder: "#BAE6FD",
+    },
+    {
+        role: "COORDINATOR",
+        label: "Coordinator",
+        subtitle: "View fee status across your grade",
+        icon: "analytics-outline",
+        color: "#7C3AED",
+        colorLight: "#EDE9FE",
+        colorBorder: "#DDD6FE",
     },
     {
         role: "STUDENT",
         label: "Student",
         subtitle: "View your fee status & payments",
         icon: "school",
-        color: "#7C3AED",
-        colorLight: "#EDE9FE",
-        colorBorder: "#DDD6FE",
+        color: "#D97706",
+        colorLight: "#FEF3C7",
+        colorBorder: "#FDE68A",
     },
 ];
 

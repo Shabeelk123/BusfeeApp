@@ -1,63 +1,19 @@
-import { supabase } from "../lib/supabase";
+/**
+ * teacher.service.ts — REMOVED IN V2
+ *
+ * The TEACHER role no longer exists in V2.
+ * Class management is handled by CLASS accounts (class_accounts table).
+ *
+ * This file is kept as a stub to avoid import errors in screens
+ * that are pending a V2 update.
+ */
 
 export const getTeachers = async () => {
-    const { data, error } = await supabase
-        .from("users")
-        .select("id, name, email, assigned_class, created_at")
-        .eq("role", "TEACHER")
-        .order("name", { ascending: true });
-
-    return { data: data ?? [], error };
+    console.warn("[teacher.service] TEACHER role removed in V2. Use account.service instead.");
+    return { data: [], error: null };
 };
 
-export const createTeacher =
-    async ({
-        name,
-        email,
-        password,
-        assigned_class,
-    }: {
-        name: string;
-
-        email: string;
-
-        password: string;
-
-        assigned_class: string;
-    }) => {
-        // Create auth user
-        const {
-            data,
-            error,
-        } = await supabase.auth.signUp({
-            email,
-            password,
-        });
-
-        if (error || !data.user) {
-            return { error };
-        }
-
-        // Create profile
-        const {
-            error: profileError,
-        } = await supabase
-            .from("users")
-            .insert([
-                {
-                    auth_id: data.user.id,
-
-                    name,
-
-                    email,
-
-                    role: "TEACHER",
-
-                    assigned_class,
-                },
-            ]);
-
-        return {
-            error: profileError,
-        };
-    };
+export const createTeacher = async (_: any) => {
+    console.warn("[teacher.service] TEACHER role removed in V2. Use account.service instead.");
+    return { error: { message: "TEACHER role is not available in V2" } };
+};
