@@ -1,5 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { generatePassword } from "./utils.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -7,7 +8,6 @@ const supabase = createClient(
 );
 
 const EMAIL_DOMAIN = "school.com";
-const DEFAULT_PASSWORD_SUFFIX = "@123";
 
 interface CreateGradeRequest {
   gradeName: string;
@@ -23,6 +23,35 @@ interface CreateGradeRequest {
 
 Deno.serve(async (req) => {
   try {
+    // ── Authorization ──────────────────────────────────────────────────────
+    // This function runs with the service-role key (bypasses RLS) and is
+    // deployed with verify_jwt = false, so without an explicit check here
+    // ANY caller — authenticated or not — could provision/delete grades and
+    // Auth users. Require a valid session belonging to an ADMIN user.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+
+    if (!token) {
+      return Response.json({ error: "Missing authorization" }, { status: 401 });
+    }
+
+    const { data: { user: callerUser }, error: callerAuthError } =
+      await supabase.auth.getUser(token);
+
+    if (callerAuthError || !callerUser) {
+      return Response.json({ error: "Invalid or expired session" }, { status: 401 });
+    }
+
+    const { data: callerProfile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", callerUser.id)
+      .single();
+
+    if (callerProfile?.role !== "ADMIN") {
+      return Response.json({ error: "Admin access required" }, { status: 403 });
+    }
+
     const body: CreateGradeRequest = await req.json();
 
     if (!body.gradeName?.trim()) {
@@ -79,7 +108,7 @@ Deno.serve(async (req) => {
       const divisionName = rawDivision.trim().toUpperCase();
       const className = `${body.gradeName}${divisionName}`;
       const email = `${className}@${EMAIL_DOMAIN}`;
-      const password = `${className}${DEFAULT_PASSWORD_SUFFIX}`;
+      const password = generatePassword();
 
       // Check duplicate division
       const { data: existingDivision } = await supabase
@@ -127,14 +156,13 @@ Deno.serve(async (req) => {
 
       createdAuthIds.push(authData.user.id);
 
-      // Insert into users table
+      // Insert into users table (no `email` column on `users` — email lives on auth.users)
       const { error: userError } = await supabase
         .from("users")
         .insert({
           id: authData.user.id,
           role: "CLASS",
           name: className,
-          email,
         });
 
       if (userError) {

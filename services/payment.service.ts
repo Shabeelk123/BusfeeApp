@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { FeeStatus } from "../types/fee";
+import { FeeStatus, FeeTransaction } from "../types/fee";
 
 // ─── Fee Status ───────────────────────────────────────────────────────────────
 
@@ -64,6 +64,94 @@ export const getStudentFeeHistory = async (studentId: string) => {
         .eq("student_id", studentId)
         .order("year", { ascending: false })
         .order("month", { ascending: false });
+};
+
+// ─── Fee Ledger (shared by StudentDetails + AddPaymentScreen) ─────────────────
+
+export interface LedgerMonth {
+    month: number;
+    year: number;
+    fee: number;
+    paid_amount: number;
+    status: FeeStatus;
+    excluded: boolean;
+    /** null when no student_monthly_fees row has been created for this month yet */
+    smfId: string | null;
+    transactions: FeeTransaction[];
+}
+
+/**
+ * Build the student's full monthly fee ledger, one entry per month from
+ * `joinDate` through the current month.
+ *
+ * Real months (a `student_monthly_fees` row already exists) come from
+ * `getStudentFeeHistory`. Months with no row yet are filled in as virtual
+ * "Pending" entries (fee = monthlyFee, paid = 0) so the ledger has no gaps —
+ * collecting a payment against one creates the row on demand (see
+ * `collectPayment`). Returned newest-first.
+ */
+export const getStudentFeeLedger = async (
+    studentId: string,
+    monthlyFee: number,
+    joinDate: string
+): Promise<{ data: LedgerMonth[]; error: any }> => {
+    const { data: rows, error } = await getStudentFeeHistory(studentId);
+    if (error) return { data: [], error };
+
+    const rowMap = new Map<string, any>();
+    (rows ?? []).forEach((r: any) => rowMap.set(`${r.month}-${r.year}`, r));
+
+    const start = new Date(joinDate);
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const ledger: LedgerMonth[] = [];
+    while (cursor <= end) {
+        const row = rowMap.get(`${cursor.getMonth() + 1}-${cursor.getFullYear()}`);
+        ledger.push({
+            month: cursor.getMonth() + 1,
+            year: cursor.getFullYear(),
+            fee: row?.fee ?? monthlyFee,
+            paid_amount: row?.paid_amount ?? 0,
+            status: row?.status ?? "Pending",
+            excluded: row?.excluded ?? false,
+            smfId: row?.id ?? null,
+            transactions: row?.fee_transactions ?? [],
+        });
+        cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return { data: ledger.reverse(), error: null };
+};
+
+export interface LedgerSummary {
+    totalPaid: number;
+    outstanding: number;
+    recentTransactions: (FeeTransaction & { month: number; year: number })[];
+}
+
+/**
+ * Derive total paid, outstanding balance, and a flattened, most-recent-first
+ * transaction list from a fee ledger. Shared by StudentDetails (Admin/CLASS)
+ * and the Student dashboard so this math lives in exactly one place.
+ */
+export const summarizeLedger = (ledger: LedgerMonth[], recentLimit = 10): LedgerSummary => {
+    let totalPaid = 0;
+    let outstanding = 0;
+    const transactions: (FeeTransaction & { month: number; year: number })[] = [];
+
+    for (const m of ledger) {
+        totalPaid += m.paid_amount;
+        if (!m.excluded) outstanding += Math.max(0, m.fee - m.paid_amount);
+        for (const t of m.transactions) {
+            transactions.push({ ...t, month: m.month, year: m.year });
+        }
+    }
+
+    transactions.sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1));
+
+    return { totalPaid, outstanding, recentTransactions: transactions.slice(0, recentLimit) };
 };
 
 // ─── Payment Collection ───────────────────────────────────────────────────────

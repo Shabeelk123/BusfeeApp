@@ -13,6 +13,86 @@ export const getGrades = async (): Promise<{ data: Grade[]; error: any }> => {
     return { data: data ?? [], error };
 };
 
+/**
+ * Fetch all grades with their divisions nested, for the admin
+ * Grade Management screen.
+ */
+export const getGradesWithDivisions = async (): Promise<{
+    data: (Grade & { divisions: Division[] })[];
+    error: any;
+}> => {
+    const { data: grades, error: gradesError } = await supabase
+        .from("grades")
+        .select("id, name, created_at")
+        .order("name", { ascending: true });
+
+    if (gradesError) return { data: [], error: gradesError };
+
+    const { data: divisions, error: divisionsError } = await supabase
+        .from("divisions")
+        .select("id, grade_id, name, created_at")
+        .order("name", { ascending: true });
+
+    if (divisionsError) return { data: [], error: divisionsError };
+
+    const data = (grades ?? []).map((g) => ({
+        ...g,
+        divisions: (divisions ?? []).filter((d) => d.grade_id === g.id),
+    }));
+
+    return { data, error: null };
+};
+
+/**
+ * Create a grade with one or more divisions via the `create-grade` Edge
+ * Function. The function also provisions a CLASS account (Supabase Auth
+ * user + `users` row + `class_accounts` row) per division and returns
+ * the generated login credentials.
+ */
+export const createGrade = async ({
+    gradeName,
+    divisions,
+}: {
+    gradeName: string;
+    divisions: string[];
+}): Promise<{
+    data: { class: string; email: string; password: string }[] | null;
+    error: any;
+}> => {
+    const { data, error } = await supabase.functions.invoke("create-grade", {
+        body: { gradeName, divisions },
+    });
+
+    if (error) return { data: null, error };
+
+    if (data?.success === false) {
+        return { data: null, error: { message: data.error || "Failed to create grade" } };
+    }
+
+    return { data: data?.accounts ?? [], error: null };
+};
+
+/**
+ * Delete a grade (and its divisions + class/coordinator accounts) via the
+ * `delete-grade` Edge Function. Refuses to delete if students are still
+ * enrolled in the grade.
+ */
+export const deleteGrade = async (
+    gradeId: string
+): Promise<{ error: any }> => {
+    const { data, error } = await supabase.functions.invoke("delete-grade", {
+        body: { gradeId },
+    });
+
+    if (error) return { error };
+
+    if (data?.success === false) {
+        return { error: { message: data.error || "Failed to delete grade" } };
+    }
+
+    return { error: null };
+};
+
 // ─── Divisions ────────────────────────────────────────────────────────────────
 
 /**
@@ -35,21 +115,6 @@ export const getDivisions = async (
     return { data: data ?? [], error };
 };
 
-/**
- * Fetch all divisions with their grade name joined.
- * Useful for building flat lists like "8-A", "8-B", ...
- */
-export const getDivisionsWithGrade = async (): Promise<{
-    data: (Division & { grade: Pick<Grade, "id" | "name"> })[];
-    error: any;
-}> => {
-    const { data, error } = await supabase
-        .from("divisions")
-        .select("id, grade_id, name, created_at, grade:grades(id, name)")
-        .order("grade_id, name", { ascending: true });
-
-    return { data: (data as any) ?? [], error };
-};
 
 /**
  * Lookup a single division by grade name + division letter.

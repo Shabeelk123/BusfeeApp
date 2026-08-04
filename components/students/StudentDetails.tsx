@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -11,10 +11,8 @@ import {
 } from "react-native";
 
 import { Colors, Shadows } from "../../constants/colors";
+import { LedgerMonth, getStudentFeeLedger, summarizeLedger } from "../../services/payment.service";
 import { deleteStudent, getStudentById } from "../../services/student.service";
-import { splitClassName } from "../../utils/className";
-import { calculateFeeBalance } from "../../utils/fee";
-import { generateMonthlyFeeStatus } from "../../utils/monthlyFeeStatus";
 import AppButton from "../common/AppButton";
 import ConfirmDialog from "../common/ConfirmDialog";
 import PageHeader from "../common/PageHeader";
@@ -23,13 +21,22 @@ import { useToast } from "../common/ToastContext";
 
 interface Props {
     role: "ADMIN" | "CLASS";
-    baseRoute: "/(admin)" | "/(teacher)";
+    baseRoute: "/(admin)" | "/(teacher)" | "/(class)";
 }
 
 const MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+const STATUS_TONE: Record<string, { color: string; bg: string; border: string }> = {
+    Paid:     { color: Colors.success, bg: Colors.successLight, border: Colors.successBorder },
+    Partial:  { color: Colors.warning, bg: Colors.warningLight, border: Colors.warningBorder },
+    Pending:  { color: Colors.danger,  bg: Colors.dangerLight,  border: Colors.dangerBorder },
+    Excluded: { color: Colors.textMuted, bg: Colors.cardBorderLight, border: Colors.cardBorder },
+};
+
+// ─── Small building blocks ─────────────────────────────────────────────────────
 
 function SummaryCard({
     label,
@@ -116,26 +123,159 @@ function InfoRow({
             <View style={{ flex: 1 }}>
                 <Text style={{ color: Colors.textMuted, fontSize: 11, fontWeight: "600" }}>{label}</Text>
                 <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "600", marginTop: 2 }}>
-                    {value || "-"}
+                    {value ?? "-"}
                 </Text>
             </View>
         </View>
     );
 }
 
+function StatusPill({ status }: { status: string }) {
+    const tone = STATUS_TONE[status] ?? STATUS_TONE.Pending;
+    return (
+        <View style={{ borderRadius: 999, backgroundColor: tone.bg, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: tone.color }}>{status}</Text>
+        </View>
+    );
+}
+
+function LedgerRow({
+    entry,
+    baseRoute,
+    studentId,
+}: {
+    entry: LedgerMonth;
+    baseRoute: Props["baseRoute"];
+    studentId: string;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const pending = Math.max(0, entry.fee - entry.paid_amount);
+    const tone = STATUS_TONE[entry.status] ?? STATUS_TONE.Pending;
+
+    return (
+        <View
+            style={{
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: tone.border,
+                backgroundColor: Colors.card,
+                marginBottom: 10,
+                overflow: "hidden",
+            }}
+        >
+            <Pressable
+                onPress={() => setExpanded((v) => !v)}
+                style={({ pressed }) => ({ padding: 14, opacity: pressed ? 0.8 : 1 })}
+                accessibilityRole="button"
+                accessibilityLabel={`${MONTH_NAMES[entry.month - 1]} ${entry.year} details`}
+            >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors.textPrimary, fontSize: 15, fontWeight: "800" }}>
+                            {MONTH_NAMES[entry.month - 1]} {entry.year}
+                        </Text>
+                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 3 }}>
+                            Fee ₹{entry.fee} · Paid ₹{entry.paid_amount} · Pending ₹{pending}
+                        </Text>
+                    </View>
+                    <StatusPill status={entry.status} />
+                    <Ionicons
+                        name={expanded ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color={Colors.textMuted}
+                        style={{ marginLeft: 8 }}
+                    />
+                </View>
+            </Pressable>
+
+            {expanded && (
+                <View style={{ borderTopWidth: 1, borderTopColor: Colors.cardBorderLight, padding: 14, backgroundColor: Colors.inputBg }}>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: Colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                        Transactions this month
+                    </Text>
+
+                    {entry.transactions.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: Colors.textMuted, marginBottom: 12 }}>
+                            No payments recorded yet.
+                        </Text>
+                    ) : (
+                        entry.transactions.map((t) => (
+                            <View
+                                key={t.id}
+                                style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}
+                            >
+                                <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                                    {t.payment_date}{t.remarks ? ` · ${t.remarks}` : ""}
+                                </Text>
+                                <Text style={{ fontSize: 13, fontWeight: "700", color: Colors.success }}>
+                                    ₹{t.amount}
+                                </Text>
+                            </View>
+                        ))
+                    )}
+
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            marginTop: 8,
+                            paddingTop: 8,
+                            borderTopWidth: 1,
+                            borderTopColor: Colors.cardBorder,
+                            marginBottom: 14,
+                        }}
+                    >
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: Colors.textMuted }}>
+                            Remaining Balance
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: "800", color: pending > 0 ? Colors.danger : Colors.success }}>
+                            ₹{pending}
+                        </Text>
+                    </View>
+
+                    {entry.status !== "Excluded" && (
+                        <AppButton
+                            label="Collect Payment"
+                            iconLeft="add-circle-outline"
+                            fullWidth
+                            size="sm"
+                            onPress={() =>
+                                router.push({
+                                    pathname: `${baseRoute}/students/add-payment` as any,
+                                    params: { studentId, month: entry.month, year: entry.year },
+                                })
+                            }
+                        />
+                    )}
+                </View>
+            )}
+        </View>
+    );
+}
+
+// ─── Main Screen ────────────────────────────────────────────────────────────────
+
 export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     const toast = useToast();
     const { id } = useLocalSearchParams();
     const [student, setStudent] = useState<any>(null);
+    const [ledger, setLedger] = useState<LedgerMonth[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<"info" | "monthly" | "transactions">("info");
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const fetchStudent = useCallback(async () => {
         try {
             setLoading(true);
             const { data } = await getStudentById(id as string);
-            if (data) setStudent(data);
+            if (!data) { setStudent(null); return; }
+            setStudent(data);
+
+            const { data: ledgerData } = await getStudentFeeLedger(
+                data.id,
+                data.monthly_fee,
+                data.created_at,
+            );
+            setLedger(ledgerData);
         } catch (error) {
             console.log(error);
         } finally {
@@ -153,6 +293,12 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
         }
         router.back();
     };
+
+    // ── Derived: outstanding, paid, recent transactions ──
+    const { totalPaid, outstanding, recentTransactions } = useMemo(
+        () => summarizeLedger(ledger),
+        [ledger],
+    );
 
     if (loading) {
         return (
@@ -183,25 +329,7 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
         );
     }
 
-    const monthlyFee = student?.student_fee_assignments?.[0]?.monthly_fee || 0;
-    const effectiveFrom = student?.student_fee_assignments?.[0]?.effective_from;
-
-    const feeSummary = calculateFeeBalance({
-        monthlyFee,
-        transactions: student?.fee_transactions || [],
-        joinDate: student.created_at,
-        effectiveFrom,
-    });
-    const monthlyStatus = generateMonthlyFeeStatus({
-        monthlyFee,
-        joinDate: student.created_at,
-        effectiveFrom,
-        transactions: student?.fee_transactions || [],
-    });
-
-    const classParts = splitClassName(student.class_name);
-    const displayClass = classParts.classLevel;
-    const dueTone = feeSummary.dueAmount > 0 ? "danger" : "success";
+    const dueTone = outstanding > 0 ? "danger" : "success";
 
     return (
         <ScreenWrapper>
@@ -210,11 +338,12 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                 contentContainerStyle={{ paddingBottom: 60 }}
             >
                 <PageHeader
-                    title={student.full_name}
+                    title={student.name}
                     subtitle={`Admission #${student.admission_no}`}
                     showBack
                 />
 
+                {/* ── Student Information ── */}
                 <View
                     style={[
                         {
@@ -244,87 +373,48 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={{ color: Colors.textMuted, fontSize: 12, fontWeight: "700" }}>
-                                Student Profile
+                                Student Information
                             </Text>
                             <Text
                                 numberOfLines={1}
                                 style={{ color: Colors.textPrimary, fontSize: 20, fontWeight: "800", marginTop: 2 }}
                             >
-                                {student.full_name}
+                                {student.name}
                             </Text>
                         </View>
                     </View>
 
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-                        <View
-                            style={{
-                                flex: 1,
-                                borderRadius: 12,
-                                backgroundColor: Colors.inputBg,
-                                paddingHorizontal: 12,
-                                paddingVertical: 10,
-                            }}
-                        >
-                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Class</Text>
+                        <View style={{ flex: 1, borderRadius: 12, backgroundColor: Colors.inputBg, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Grade</Text>
                             <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                                {classParts.classLevel || "-"}
+                                {student.grade?.name ?? "-"}
                             </Text>
                         </View>
-                        <View
-                            style={{
-                                flex: 1,
-                                borderRadius: 12,
-                                backgroundColor: Colors.inputBg,
-                                paddingHorizontal: 12,
-                                paddingVertical: 10,
-                            }}
-                        >
+                        <View style={{ flex: 1, borderRadius: 12, backgroundColor: Colors.inputBg, paddingHorizontal: 12, paddingVertical: 10 }}>
                             <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Division</Text>
                             <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                                {classParts.division || "-"}
+                                {student.division?.name ?? "-"}
                             </Text>
                         </View>
-                        <View
-                            style={{
-                                flex: 1,
-                                borderRadius: 12,
-                                backgroundColor: Colors.inputBg,
-                                paddingHorizontal: 12,
-                                paddingVertical: 10,
-                            }}
-                        >
-                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Route</Text>
-                            <Text numberOfLines={1} style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
-                                {student.bus_route || "-"}
+                        <View style={{ flex: 1, borderRadius: 12, backgroundColor: Colors.inputBg, paddingHorizontal: 12, paddingVertical: 10 }}>
+                            <Text style={{ color: Colors.textMuted, fontSize: 11 }}>Monthly Fee</Text>
+                            <Text style={{ color: Colors.textPrimary, fontSize: 14, fontWeight: "700", marginTop: 2 }}>
+                                ₹{student.monthly_fee}
                             </Text>
                         </View>
                     </View>
                 </View>
 
+                {/* ── Outstanding / Paid / Monthly summary ── */}
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
-                    <SummaryCard label="Monthly" value={`Rs ${monthlyFee}`} />
-                    <SummaryCard label="Paid" value={`Rs ${feeSummary.totalPaid}`} tone="success" />
-                    <SummaryCard
-                        label={feeSummary.dueAmount > 0 ? "Due" : "Advance"}
-                        value={`Rs ${feeSummary.dueAmount > 0 ? feeSummary.dueAmount : feeSummary.advanceAmount}`}
-                        tone={dueTone}
-                    />
+                    <SummaryCard label="Monthly" value={`₹${student.monthly_fee}`} />
+                    <SummaryCard label="Paid" value={`₹${totalPaid}`} tone="success" />
+                    <SummaryCard label="Outstanding" value={`₹${outstanding}`} tone={dueTone} />
                 </View>
 
-                <AppButton
-                    label="Add Payment"
-                    iconLeft="add-circle-outline"
-                    fullWidth
-                    onPress={() =>
-                        router.push({
-                            pathname: `${baseRoute}/students/add-payment` as any,
-                            params: { studentId: student.id },
-                        })
-                    }
-                />
-
                 {role === "ADMIN" && (
-                    <View style={{ flexDirection: "row", gap: 12, marginTop: 12, marginBottom: 18 }}>
+                    <View style={{ flexDirection: "row", gap: 12, marginBottom: 18 }}>
                         <View style={{ flex: 1 }}>
                             <AppButton
                                 label="Edit"
@@ -351,173 +441,72 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                     </View>
                 )}
 
-                <View
-                    style={{
-                        flexDirection: "row",
-                        borderRadius: 14,
-                        backgroundColor: Colors.card,
-                        borderWidth: 1,
-                        borderColor: Colors.cardBorderLight,
-                        padding: 4,
-                        marginTop: role === "ADMIN" ? 0 : 18,
-                        marginBottom: 16,
-                    }}
-                >
-                    {(["info", "monthly", "transactions"] as const).map((tab) => {
-                        const isActive = activeTab === tab;
-                        return (
-                            <Pressable
-                                key={tab}
-                                onPress={() => setActiveTab(tab)}
-                                accessibilityRole="button"
-                                style={({ pressed }) => ({
-                                    flex: 1,
-                                    alignItems: "center",
-                                    borderRadius: 10,
-                                    paddingVertical: 10,
-                                    backgroundColor: isActive ? Colors.primary : "transparent",
-                                    opacity: pressed ? 0.75 : 1,
-                                })}
-                            >
-                                <Text
-                                    style={{
-                                        color: isActive ? Colors.textOnDark : Colors.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: "800",
-                                    }}
-                                >
-                                    {tab === "info" ? "Info" : tab === "monthly" ? "Monthly" : "Payments"}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
-                </View>
-
-                {activeTab === "info" && (
-                    <View
-                        style={[
-                            {
-                                borderRadius: 16,
-                                backgroundColor: Colors.card,
-                                borderWidth: 1,
-                                borderColor: Colors.cardBorderLight,
-                                paddingHorizontal: 14,
-                            },
-                            Shadows.card,
-                        ]}
-                    >
-                        <InfoRow icon="people-outline" label="Parent Name" value={student.parent_name} />
-                        <InfoRow icon="call-outline" label="Phone" value={student.phone} />
-                        <InfoRow icon="book-outline" label="Class" value={displayClass} />
-                        <InfoRow icon="grid-outline" label="Division" value={classParts.division} />
-                        <InfoRow icon="bus-outline" label="Bus Route" value={student.bus_route} />
-                        <InfoRow icon="cash-outline" label="Expected Total" value={`Rs ${feeSummary.expectedAmount}`} />
-                        <InfoRow
-                            icon="calendar-outline"
-                            label="Months Enrolled"
-                            value={`${feeSummary.totalMonths} months`}
-                            isLast
-                        />
+                {/* ── Monthly Fee Ledger ── */}
+                <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.textPrimary, marginBottom: 10 }}>
+                    Monthly Fee Ledger
+                </Text>
+                {ledger.length === 0 ? (
+                    <View style={{ alignItems: "center", paddingVertical: 32, marginBottom: 16 }}>
+                        <Ionicons name="calendar-outline" size={36} color={Colors.textMuted} />
+                        <Text style={{ color: Colors.textSecondary, marginTop: 10, fontSize: 13 }}>
+                            No fee months yet
+                        </Text>
+                    </View>
+                ) : (
+                    <View style={{ marginBottom: 8 }}>
+                        {ledger.map((entry) => (
+                            <LedgerRow
+                                key={`${entry.month}-${entry.year}`}
+                                entry={entry}
+                                baseRoute={baseRoute}
+                                studentId={student.id}
+                            />
+                        ))}
                     </View>
                 )}
 
-                {activeTab === "monthly" && (
-                    <View>
-                        {monthlyStatus.months.map((item, index) => {
-                            const isPaid = item.status === "PAID";
-                            const isPartial = item.status === "PARTIAL";
-                            const color = isPaid ? Colors.success : isPartial ? Colors.warning : Colors.danger;
-                            const bg = isPaid ? Colors.successLight : isPartial ? Colors.warningLight : Colors.dangerLight;
-                            const border = isPaid ? Colors.successBorder : isPartial ? Colors.warningBorder : Colors.dangerBorder;
-
-                            return (
-                                <View
-                                    key={index}
-                                    style={{
-                                        marginBottom: 10,
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        borderRadius: 14,
-                                        borderWidth: 1,
-                                        borderColor: border,
-                                        backgroundColor: Colors.card,
-                                        padding: 14,
-                                    }}
-                                >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: Colors.textPrimary, fontSize: 15, fontWeight: "800" }}>
-                                            {MONTH_NAMES[item.month - 1]} {item.year}
-                                        </Text>
-                                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 3 }}>
-                                            Paid Rs {item.paid} / Rs {item.expected}
-                                        </Text>
-                                    </View>
-                                    <View style={{ borderRadius: 999, backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 5 }}>
-                                        <Text style={{ color, fontSize: 11, fontWeight: "800" }}>{item.status}</Text>
-                                    </View>
-                                </View>
-                            );
-                        })}
-                        {monthlyStatus.advanceAmount > 0 && (
-                            <View
-                                style={{
+                {/* ── Recent Transactions ── */}
+                <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.textPrimary, marginTop: 8, marginBottom: 10 }}>
+                    Recent Transactions
+                </Text>
+                {recentTransactions.length === 0 ? (
+                    <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                        <Ionicons name="card-outline" size={36} color={Colors.textMuted} />
+                        <Text style={{ color: Colors.textSecondary, marginTop: 10, fontSize: 13 }}>
+                            No transactions yet
+                        </Text>
+                    </View>
+                ) : (
+                    recentTransactions.map((t) => (
+                        <View
+                            key={t.id}
+                            style={[
+                                {
+                                    marginBottom: 10,
                                     borderRadius: 14,
-                                    backgroundColor: Colors.primaryLight,
+                                    backgroundColor: Colors.card,
                                     borderWidth: 1,
-                                    borderColor: Colors.primaryBorder,
+                                    borderColor: Colors.cardBorderLight,
                                     padding: 14,
-                                }}
-                            >
-                                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: "800" }}>
-                                    Advance Balance: Rs {monthlyStatus.advanceAmount}
+                                },
+                                Shadows.card,
+                            ]}
+                        >
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                <Text style={{ color: Colors.success, fontSize: 18, fontWeight: "800" }}>
+                                    ₹{t.amount}
+                                </Text>
+                                <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
+                                    {MONTH_NAMES[t.month - 1]} {t.year} · {t.payment_date}
                                 </Text>
                             </View>
-                        )}
-                    </View>
-                )}
-
-                {activeTab === "transactions" && (
-                    <View>
-                        {!student?.fee_transactions?.length ? (
-                            <View style={{ alignItems: "center", paddingVertical: 48 }}>
-                                <Ionicons name="card-outline" size={40} color={Colors.textMuted} />
-                                <Text style={{ color: Colors.textSecondary, marginTop: 12, fontSize: 14 }}>
-                                    No transactions yet
+                            {t.remarks ? (
+                                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+                                    {t.remarks}
                                 </Text>
-                            </View>
-                        ) : (
-                            student.fee_transactions.map((item: any) => (
-                                <View
-                                    key={item.id}
-                                    style={[
-                                        {
-                                            marginBottom: 10,
-                                            borderRadius: 14,
-                                            backgroundColor: Colors.card,
-                                            borderWidth: 1,
-                                            borderColor: Colors.cardBorderLight,
-                                            padding: 14,
-                                        },
-                                        Shadows.card,
-                                    ]}
-                                >
-                                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                                        <Text style={{ color: Colors.success, fontSize: 18, fontWeight: "800" }}>
-                                            Rs {item.amount}
-                                        </Text>
-                                        <Text style={{ color: Colors.textMuted, fontSize: 12 }}>
-                                            {MONTH_NAMES[(item.payment_month || 1) - 1]} {item.payment_year}
-                                        </Text>
-                                    </View>
-                                    {item.note ? (
-                                        <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-                                            {item.note}
-                                        </Text>
-                                    ) : null}
-                                </View>
-                            ))
-                        )}
-                    </View>
+                            ) : null}
+                        </View>
+                    ))
                 )}
             </ScrollView>
 

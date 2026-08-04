@@ -1,21 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { Student } from "../types/student";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface StudentWithRelations extends Student {
-    grade?: { id: string; name: string };
-    division?: { id: string; name: string };
-    student_monthly_fees?: {
-        id: string;
-        month: number;
-        year: number;
-        fee: number;
-        paid_amount: number;
-        status: string;
-    }[];
-}
-
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 /**
@@ -134,9 +119,25 @@ export const getStudentById = async (id: string) => {
         .single();
 };
 
+/** Slug-ify the student's first name into a safe email/password fragment. */
+const firstNameSlug = (name: string): string => {
+    const slug = (name.trim().split(/\s+/)[0] ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+    return slug || "student";
+};
+
+const LOGIN_EMAIL_DOMAIN = "school.com";
+
 /**
- * Create a student (V2).
- * Creates Supabase Auth user + users profile row + student row.
+ * Create a student (V2) with an auto-generated login.
+ *
+ * Login credentials are always generated — never entered manually — from
+ * the student's first name + admission number (e.g. "Adam", "ADM-003" →
+ * `adam003@school.com` / `adam123`). If that email is already taken, a
+ * numeric suffix is added and retried a few times before giving up.
+ * The generated credentials are returned so the caller can display them
+ * once, right after creation.
  */
 export const createStudent = async ({
     name,
@@ -144,17 +145,13 @@ export const createStudent = async ({
     grade_id,
     division_id,
     monthly_fee,
-    email,
-    password,
 }: {
     name: string;
     admission_no: string;
     grade_id: string;
     division_id: string;
     monthly_fee: number;
-    email: string;
-    password: string;
-}) => {
+}): Promise<{ data: (Student & { credentials: { email: string; password: string } }) | null; error: any }> => {
     // ── Pre-flight uniqueness checks ─────────────────────────────────────────
     const { data: existingAdm } = await supabase
         .from("students")
@@ -163,30 +160,53 @@ export const createStudent = async ({
         .maybeSingle();
 
     if (existingAdm) {
-        return { error: { message: "Admission number already exists" } as any };
+        return { data: null, error: { message: "Admission number already exists" } as any };
     }
 
-    // ── Save current session (admin/class) ───────────────────────────────────
+    const firstName = firstNameSlug(name);
+    const admissionSlug = admission_no.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const password = `${firstName}123`;
+
+    // ── Save current session (admin) — signUp() swaps the active session ──────
     const { data: { session: adminSession } } = await supabase.auth.getSession();
 
-    // ── Create Supabase Auth user ────────────────────────────────────────────
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-    });
+    let authUser: { id: string } | null = null;
+    let email = `${firstName}${admissionSlug}@${LOGIN_EMAIL_DOMAIN}`;
+    let lastAuthError: any = null;
 
-    if (authError || !authData.user) {
-        return { error: authError };
+    for (let attempt = 1; attempt <= 5; attempt++) {
+        const candidateEmail =
+            attempt === 1 ? email : `${firstName}${admissionSlug}${attempt}@${LOGIN_EMAIL_DOMAIN}`;
+
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: candidateEmail,
+            password,
+        });
+
+        if (!authError && authData.user) {
+            authUser = authData.user;
+            email = candidateEmail;
+            break;
+        }
+
+        lastAuthError = authError;
+
+        const msg = authError?.message?.toLowerCase() ?? "";
+        if (!msg.includes("already registered") && !msg.includes("already exists")) {
+            break; // not a collision — no point retrying
+        }
     }
 
-    const authUser = authData.user;
-
-    // ── Restore admin/class session immediately ───────────────────────────────
+    // ── Restore admin session immediately ──────────────────────────────────────
     if (adminSession?.access_token && adminSession?.refresh_token) {
         await supabase.auth.setSession({
             access_token: adminSession.access_token,
             refresh_token: adminSession.refresh_token,
         });
+    }
+
+    if (!authUser) {
+        return { data: null, error: lastAuthError ?? { message: "Failed to generate a unique login" } };
     }
 
     // ── Create users profile row (V2: id = auth.uid()) ───────────────────────
@@ -196,7 +216,7 @@ export const createStudent = async ({
         role: "STUDENT",
     }]);
 
-    if (userError) return { error: userError };
+    if (userError) return { data: null, error: userError };
 
     // ── Create student row ────────────────────────────────────────────────────
     const { data: student, error: studentError } = await supabase
@@ -212,9 +232,9 @@ export const createStudent = async ({
         .select()
         .single();
 
-    if (studentError) return { error: studentError };
+    if (studentError) return { data: null, error: studentError };
 
-    return { data: student, error: null };
+    return { data: { ...student, credentials: { email, password } }, error: null };
 };
 
 /**
@@ -231,11 +251,22 @@ export const updateStudent = async (
 };
 
 /**
- * Delete a student row.
- * Note: associated Supabase Auth user is NOT deleted here (admin action).
+ * Delete a student via the `delete-student` Edge Function — removes the
+ * `students` row, the linked `users` row, and the Supabase Auth account
+ * (if the student had a login), in that order.
  */
 export const deleteStudent = async (id: string) => {
-    return await supabase.from("students").delete().eq("id", id);
+    const { data, error } = await supabase.functions.invoke("delete-student", {
+        body: { studentId: id },
+    });
+
+    if (error) return { error };
+
+    if (data?.success === false) {
+        return { error: { message: data.error || "Failed to delete student" } };
+    }
+
+    return { error: null };
 };
 
 /**

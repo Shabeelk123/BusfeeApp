@@ -4,9 +4,12 @@ import ConfirmDialog from "@/components/common/ConfirmDialog";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { Colors } from "@/constants/colors";
 import { logoutUser } from "@/services/auth.service";
+import {
+    LedgerMonth,
+    getStudentFeeLedger,
+    summarizeLedger,
+} from "@/services/payment.service";
 import { getCurrentStudent } from "@/services/student.service";
-import { calculateFeeBalance } from "@/utils/fee";
-import { generateMonthlyFeeStatus } from "@/utils/monthlyFeeStatus";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
@@ -20,18 +23,8 @@ import {
 } from "react-native";
 
 const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 function MiniStat({
@@ -68,6 +61,7 @@ function MiniStat({
 
 export default function StudentDashboard() {
   const [student, setStudent] = useState<any>(null);
+  const [ledger, setLedger] = useState<LedgerMonth[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"monthly" | "history">("monthly");
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -78,6 +72,15 @@ export default function StudentDashboard() {
       setLoading(true);
       const { data } = await getCurrentStudent();
       setStudent(data);
+
+      if (data) {
+        const { data: ledgerData } = await getStudentFeeLedger(
+          data.id,
+          data.monthly_fee,
+          data.created_at,
+        );
+        setLedger(ledgerData);
+      }
     } catch (error) {
       console.log(error);
     } finally {
@@ -169,25 +172,12 @@ export default function StudentDashboard() {
     );
   }
 
-  const monthlyFee = student?.student_fee_assignments?.[0]?.monthly_fee || 0;
-  const feeSummary = calculateFeeBalance({
-    monthlyFee,
-    transactions: student?.fee_transactions || [],
-    joinDate: student.created_at,
-  });
-  const monthlyStatus = generateMonthlyFeeStatus({
-    monthlyFee,
-    joinDate: student.created_at,
-    transactions: student?.fee_transactions || [],
-  });
+  const monthlyFee = student.monthly_fee ?? 0;
+  const { totalPaid, outstanding, recentTransactions } = summarizeLedger(ledger);
 
-  const paidCount = monthlyStatus.months.filter(
-    (m) => m.status === "PAID",
-  ).length;
-  const pendingCount = monthlyStatus.months.filter(
-    (m) => m.status === "PENDING",
-  ).length;
-  const isCleared = feeSummary.dueAmount === 0;
+  const paidCount = ledger.filter((m) => m.status === "Paid").length;
+  const pendingCount = ledger.filter((m) => m.status === "Pending").length;
+  const isCleared = outstanding === 0;
 
   return (
     <ScreenWrapper>
@@ -247,7 +237,7 @@ export default function StudentDashboard() {
               }}
               numberOfLines={1}
             >
-              {student.full_name}
+              {student.name}
             </Text>
             <View style={{ marginTop: 10, flexDirection: "row", gap: 8 }}>
               <View
@@ -275,7 +265,9 @@ export default function StudentDashboard() {
                     color: Colors.textSecondary,
                   }}
                 >
-                  {student.class_name || "No Class"}
+                  {student.grade?.name && student.division?.name
+                    ? `${student.grade.name}-${student.division.name}`
+                    : "No Class"}
                 </Text>
               </View>
               <View
@@ -291,7 +283,7 @@ export default function StudentDashboard() {
                 }}
               >
                 <Ionicons
-                  name="bus-outline"
+                  name="id-card-outline"
                   size={12}
                   color={Colors.textSecondary}
                   style={{ marginRight: 4 }}
@@ -303,7 +295,7 @@ export default function StudentDashboard() {
                     color: Colors.textSecondary,
                   }}
                 >
-                  {student.bus_route || "No Route"}
+                  #{student.admission_no}
                 </Text>
               </View>
             </View>
@@ -344,11 +336,7 @@ export default function StudentDashboard() {
               color: Colors.textOnDark,
             }}
           >
-            {feeSummary.dueAmount > 0
-              ? `₹${feeSummary.dueAmount}`
-              : feeSummary.advanceAmount > 0
-                ? `+₹${feeSummary.advanceAmount}`
-                : "All Clear"}
+            {outstanding > 0 ? `₹${outstanding}` : "All Clear"}
           </Text>
           <Text
             style={{
@@ -358,11 +346,9 @@ export default function StudentDashboard() {
               opacity: 0.85,
             }}
           >
-            {feeSummary.dueAmount > 0
+            {outstanding > 0
               ? "Please clear your dues as soon as possible"
-              : feeSummary.advanceAmount > 0
-                ? "You have an advance balance — great work!"
-                : "Your fee account is fully up to date"}
+              : "Your fee account is fully up to date"}
           </Text>
           <View style={{ marginTop: 16, flexDirection: "row", gap: 8 }}>
             <View
@@ -419,34 +405,6 @@ export default function StudentDashboard() {
                 </Text>
               </View>
             )}
-            {monthlyStatus.advanceAmount > 0 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  borderRadius: 8,
-                  backgroundColor: "rgba(255, 255, 255, 0.2)",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                }}
-              >
-                <Ionicons
-                  name="trending-up-outline"
-                  size={12}
-                  color={Colors.textOnDark}
-                  style={{ marginRight: 4 }}
-                />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: Colors.textOnDark,
-                  }}
-                >
-                  ₹{monthlyStatus.advanceAmount} Advance
-                </Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -459,12 +417,12 @@ export default function StudentDashboard() {
           />
           <MiniStat
             label="Total Paid"
-            value={`₹${feeSummary.totalPaid}`}
+            value={`₹${totalPaid}`}
             valueColor={Colors.success}
           />
           <MiniStat
             label="Months"
-            value={String(feeSummary.totalMonths)}
+            value={String(ledger.length)}
             valueColor={Colors.textPrimary}
           />
         </View>
@@ -522,7 +480,7 @@ export default function StudentDashboard() {
         {/* ── Monthly Status Tab ── */}
         {activeTab === "monthly" && (
           <View>
-            {monthlyStatus.months.length === 0 ? (
+            {ledger.length === 0 ? (
               <View style={{ marginTop: 40, alignItems: "center" }}>
                 <View
                   style={{
@@ -552,9 +510,9 @@ export default function StudentDashboard() {
                 </Text>
               </View>
             ) : (
-              monthlyStatus.months.map((item, index) => {
-                const isPaid = item.status === "PAID";
-                const isPartial = item.status === "PARTIAL";
+              ledger.map((entry, index) => {
+                const isPaid = entry.status === "Paid";
+                const isPartial = entry.status === "Partial";
                 const bgColor = isPaid
                   ? Colors.successLight
                   : isPartial
@@ -602,7 +560,7 @@ export default function StudentDashboard() {
                       <Text
                         style={{ fontWeight: "600", color: Colors.textPrimary }}
                       >
-                        {MONTH_NAMES[item.month - 1]} {item.year}
+                        {MONTH_NAMES[entry.month - 1]} {entry.year}
                       </Text>
                       <Text
                         style={{
@@ -611,7 +569,7 @@ export default function StudentDashboard() {
                           color: Colors.textSecondary,
                         }}
                       >
-                        Paid ₹{item.paid} of ₹{item.expected}
+                        Paid ₹{entry.paid_amount} of ₹{entry.fee}
                       </Text>
                     </View>
                     <View
@@ -629,7 +587,7 @@ export default function StudentDashboard() {
                           color: Colors.textOnDark,
                         }}
                       >
-                        {item.status}
+                        {entry.status}
                       </Text>
                     </View>
                   </View>
@@ -642,7 +600,7 @@ export default function StudentDashboard() {
         {/* ── History Tab ── */}
         {activeTab === "history" && (
           <View>
-            {!student?.fee_transactions?.length ? (
+            {recentTransactions.length === 0 ? (
               <View style={{ marginTop: 40, alignItems: "center" }}>
                 <View
                   style={{
@@ -672,97 +630,90 @@ export default function StudentDashboard() {
                 </Text>
               </View>
             ) : (
-              [...student.fee_transactions]
-                .sort(
-                  (a: any, b: any) =>
-                    new Date(b.created_at).getTime() -
-                    new Date(a.created_at).getTime(),
-                )
-                .map((item: any) => (
+              recentTransactions.map((item) => (
+                <View
+                  key={item.id}
+                  style={{
+                    marginBottom: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: Colors.cardBorder,
+                    backgroundColor: Colors.card,
+                    padding: 16,
+                    shadowColor: "#000",
+                    shadowOpacity: 0.04,
+                    shadowRadius: 8,
+                    elevation: 1,
+                  }}
+                >
                   <View
-                    key={item.id}
                     style={{
-                      marginBottom: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: Colors.cardBorder,
-                      backgroundColor: Colors.card,
-                      padding: 16,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.04,
-                      shadowRadius: 8,
-                      elevation: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                     }}
                   >
                     <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
+                      style={{ flexDirection: "row", alignItems: "center" }}
                     >
                       <View
-                        style={{ flexDirection: "row", alignItems: "center" }}
-                      >
-                        <View
-                          style={{
-                            marginRight: 12,
-                            height: 40,
-                            width: 40,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderRadius: 20,
-                            backgroundColor: Colors.successLight,
-                          }}
-                        >
-                          <Ionicons
-                            name="cash-outline"
-                            size={20}
-                            color={Colors.success}
-                          />
-                        </View>
-                        <View>
-                          <Text
-                            style={{
-                              fontSize: 16,
-                              fontWeight: "700",
-                              color: Colors.success,
-                            }}
-                          >
-                            ₹{item.amount}
-                          </Text>
-                          <Text
-                            style={{
-                              marginTop: 2,
-                              fontSize: 11,
-                              color: Colors.textMuted,
-                            }}
-                          >
-                            {MONTH_NAMES[(item.payment_month || 1) - 1]}{" "}
-                            {item.payment_year}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={{ fontSize: 11, color: Colors.textMuted }}>
-                        {new Date(item.created_at).toLocaleDateString("en-IN")}
-                      </Text>
-                    </View>
-                    {item.note && (
-                      <Text
                         style={{
-                          marginTop: 12,
-                          paddingTop: 12,
-                          borderTopWidth: 1,
-                          borderTopColor: Colors.cardBorder,
-                          fontSize: 12,
-                          color: Colors.textMuted,
+                          marginRight: 12,
+                          height: 40,
+                          width: 40,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 20,
+                          backgroundColor: Colors.successLight,
                         }}
                       >
-                        {item.note}
-                      </Text>
-                    )}
+                        <Ionicons
+                          name="cash-outline"
+                          size={20}
+                          color={Colors.success}
+                        />
+                      </View>
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "700",
+                            color: Colors.success,
+                          }}
+                        >
+                          ₹{item.amount}
+                        </Text>
+                        <Text
+                          style={{
+                            marginTop: 2,
+                            fontSize: 11,
+                            color: Colors.textMuted,
+                          }}
+                        >
+                          {MONTH_NAMES[item.month - 1]} {item.year}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>
+                      {item.payment_date}
+                    </Text>
                   </View>
-                ))
+                  {item.remarks && (
+                    <Text
+                      style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTopWidth: 1,
+                        borderTopColor: Colors.cardBorder,
+                        fontSize: 12,
+                        color: Colors.textMuted,
+                      }}
+                    >
+                      {item.remarks}
+                    </Text>
+                  )}
+                </View>
+              ))
             )}
           </View>
         )}
@@ -773,7 +724,7 @@ export default function StudentDashboard() {
       <AppDrawer
         visible={showDrawer}
         onClose={() => setShowDrawer(false)}
-        userName={student?.full_name}
+        userName={student?.name}
         userRole="Student"
         items={[
           {

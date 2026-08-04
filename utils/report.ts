@@ -1,122 +1,37 @@
-export const generateReportSummary =
-    ({
-        students,
-        feeAssignments,
-        transactions,
-        selectedMonth,
-        selectedYear,
-    }: any) => {
-        let totalCollection = 0;
+import { ReportStudentRow } from "../services/report.service";
 
-        let totalPending = 0;
+/**
+ * Summarize a set of report rows (see report.service.ts::getReportData) —
+ * one row per student for the selected month/year.
+ */
+export const generateReportSummary = ({ rows }: { rows: ReportStudentRow[] }) => {
+    let totalCollection = 0;
+    let totalPending = 0;
+    let totalAdvance = 0;
+    let defaultersCount = 0;
 
-        let totalAdvance = 0;
+    rows.forEach((row) => {
+        const paid = row.paid_amount ?? 0;
+        const fee = row.fee ?? 0;
+        const pending = row.status === "Excluded" ? 0 : Math.max(fee - paid, 0);
+        const advance = paid > fee ? paid - fee : 0;
 
-        let defaultersCount = 0;
+        totalCollection += paid;
+        totalPending += pending;
+        totalAdvance += advance;
 
-        students.forEach(
-            (student: any) => {
-                // FIND FEE
-                const feeAssignment =
-                    feeAssignments.find(
-                        (
-                            item: any
-                        ) =>
-                            item.student_id ===
-                            student.id
-                    );
+        if (pending > 0) defaultersCount++;
+    });
 
-                const monthlyFee =
-                    Number(
-                        feeAssignment?.monthly_fee || 0
-                    );
+    const expected = totalCollection + totalPending;
+    const collectionRate = expected > 0 ? Math.round((totalCollection / expected) * 100) : 0;
 
-                // FILTER MONTH TRANSACTIONS
-                const studentTransactions =
-                    transactions.filter(
-                        (
-                            transaction: any
-                        ) =>
-                            transaction.student_id ===
-                            student.id &&
-                            transaction.payment_month ===
-                            selectedMonth &&
-                            transaction.payment_year ===
-                            selectedYear
-                    );
-
-                // TOTAL PAID
-                const totalPaid =
-                    studentTransactions.reduce(
-                        (
-                            sum: number,
-                            item: any
-                        ) =>
-                            sum +
-                            Number(
-                                item.amount
-                            ),
-                        0
-                    );
-
-                // PENDING
-                const pending =
-                    Math.max(
-                        monthlyFee -
-                        totalPaid,
-                        0
-                    );
-
-                // ADVANCE
-                const advance =
-                    totalPaid >
-                        monthlyFee
-                        ? totalPaid -
-                        monthlyFee
-                        : 0;
-
-                totalCollection +=
-                    totalPaid;
-
-                totalPending +=
-                    pending;
-
-                totalAdvance +=
-                    advance;
-
-                if (
-                    pending > 0
-                ) {
-                    defaultersCount++;
-                }
-            }
-        );
-
-        const expected =
-            totalCollection +
-            totalPending;
-
-        const collectionRate =
-            expected > 0
-                ? Math.round(
-                    (totalCollection /
-                        expected) *
-                    100
-                )
-                : 0;
-
-        return {
-            totalStudents:
-                students.length,
-
-            totalCollection,
-
-            totalPending,
-
-            totalAdvance,
-
-            defaultersCount,
-
-            collectionRate,
-        };
+    return {
+        totalStudents: rows.length,
+        totalCollection,
+        totalPending,
+        totalAdvance,
+        defaultersCount,
+        collectionRate,
     };
+};

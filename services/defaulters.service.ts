@@ -5,6 +5,12 @@ import { supabase } from "../lib/supabase";
  * for a given month/year, filtered by grade/division if provided.
  *
  * V2: queries student_monthly_fees directly — no computed ledger needed.
+ *
+ * The grade/division filter is applied server-side via a `!inner` join on
+ * `students`, not fetched-then-filtered client-side. Fetching every school's
+ * defaulters and filtering in JS would leak every other class's student
+ * names and dues over the network to a CLASS/COORDINATOR client, visible to
+ * anyone inspecting the app's traffic — regardless of what the UI displays.
  */
 export const getCurrentMonthDefaulters = async ({
     gradeId,
@@ -26,7 +32,7 @@ export const getCurrentMonthDefaulters = async ({
             fee,
             paid_amount,
             status,
-            student:students (
+            student:students!inner (
                 id,
                 name,
                 admission_no,
@@ -41,20 +47,17 @@ export const getCurrentMonthDefaulters = async ({
         .eq("month", currentMonth)
         .eq("year", currentYear);
 
+    if (gradeId) {
+        query = query.eq("student.grade_id", gradeId);
+    }
+
+    if (divisionId) {
+        query = query.eq("student.division_id", divisionId);
+    }
+
     const { data, error } = await query;
 
     if (error) return { data: [], error };
 
-    // Apply grade/division filters on joined student data
-    let results = (data as any[]) ?? [];
-
-    if (gradeId) {
-        results = results.filter((r: any) => r.student?.grade_id === gradeId);
-    }
-
-    if (divisionId) {
-        results = results.filter((r: any) => r.student?.division_id === divisionId);
-    }
-
-    return { data: results, error: null };
+    return { data: (data as any[]) ?? [], error: null };
 };

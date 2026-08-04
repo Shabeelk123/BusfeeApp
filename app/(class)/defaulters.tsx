@@ -1,15 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { FlatList, Text, View } from "react-native";
 
-import AppSelect from "@/components/common/AppSelect";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { Colors, Shadows } from "@/constants/colors";
-import { getClasses, resolveClassFilter } from "@/services/class.service";
+import { getCurrentClassAccount } from "@/services/account.service";
 import { getCurrentMonthDefaulters } from "@/services/defaulters.service";
 
 // ── Stat Pill ─────────────────────────────────────────────────────────────────
@@ -40,24 +40,10 @@ function StatPill({
             }}
         >
             <Ionicons name={icon} size={16} color={iconColor} />
-            <Text
-                style={{
-                    marginTop: 4,
-                    fontSize: 11,
-                    color: Colors.textMuted,
-                    fontWeight: "500",
-                }}
-            >
+            <Text style={{ marginTop: 4, fontSize: 11, color: Colors.textMuted, fontWeight: "500" }}>
                 {label}
             </Text>
-            <Text
-                style={{
-                    marginTop: 2,
-                    fontSize: 14,
-                    fontWeight: "800",
-                    color: valueColor,
-                }}
-            >
+            <Text style={{ marginTop: 2, fontSize: 14, fontWeight: "800", color: valueColor }}>
                 {value}
             </Text>
         </View>
@@ -85,7 +71,6 @@ function DefaulterCard({ item }: { item: any }) {
                 Shadows.card,
             ]}
         >
-            {/* Top row */}
             <View
                 style={{
                     flexDirection: "row",
@@ -95,28 +80,14 @@ function DefaulterCard({ item }: { item: any }) {
                 }}
             >
                 <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text
-                        numberOfLines={1}
-                        style={{
-                            fontSize: 16,
-                            fontWeight: "700",
-                            color: Colors.textPrimary,
-                        }}
-                    >
+                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
                         {student?.name}
                     </Text>
-                    <Text
-                        style={{
-                            marginTop: 2,
-                            fontSize: 13,
-                            color: Colors.textSecondary,
-                        }}
-                    >
-                        Class: {student?.grade?.name}-{student?.division?.name}
+                    <Text style={{ marginTop: 2, fontSize: 13, color: Colors.textSecondary }}>
+                        #{student?.admission_no}
                     </Text>
                 </View>
 
-                {/* DUE badge */}
                 <View
                     style={{
                         backgroundColor: Colors.dangerLight,
@@ -127,20 +98,12 @@ function DefaulterCard({ item }: { item: any }) {
                         borderColor: Colors.dangerBorder,
                     }}
                 >
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: "800",
-                            color: Colors.danger,
-                            letterSpacing: 0.5,
-                        }}
-                    >
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: Colors.danger, letterSpacing: 0.5 }}>
                         DUE
                     </Text>
                 </View>
             </View>
 
-            {/* Stats row */}
             <View style={{ flexDirection: "row", gap: 8 }}>
                 <StatPill
                     icon="cash-outline"
@@ -172,37 +135,41 @@ function DefaulterCard({ item }: { item: any }) {
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
-export default function DefaultersScreen() {
-    const [students, setStudents] = useState<any[]>([]);
-    const [selectedClass, setSelectedClass] = useState("ALL");
-    const [classes, setClasses] = useState<string[]>(["ALL"]);
+export default function ClassDefaultersScreen() {
+    const [rows, setRows] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [classLabel, setClassLabel] = useState<string | null>(null);
 
-    const fetchClasses = async () => {
-        const { data, error } = await getClasses();
-        if (error) { console.log(error); return; }
-        setClasses(data);
-    };
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(false);
-            const { gradeId, divisionId } = await resolveClassFilter(selectedClass);
-            const { data, error } = await getCurrentMonthDefaulters({ gradeId, divisionId });
-            if (error) { console.log(error); setError(true); return; }
-            setStudents(data);
-        } catch (err) {
-            console.log(err);
+
+            const { data: account, error: accountError } = await getCurrentClassAccount();
+            if (accountError || !account) { setError(true); return; }
+
+            setClassLabel(`${account.grade.name}-${account.division.name}`);
+
+            const { data, error } = await getCurrentMonthDefaulters({
+                gradeId: account.grade_id,
+                divisionId: account.division_id,
+            });
+
+            if (error) { setError(true); return; }
+            setRows(data);
+        } catch {
             setError(true);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    useEffect(() => { fetchClasses(); fetchData(); }, []);
-    useEffect(() => { fetchData(); }, [selectedClass]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchData();
+        }, [fetchData]),
+    );
 
     if (loading) {
         return (
@@ -226,35 +193,19 @@ export default function DefaultersScreen() {
     return (
         <ScreenWrapper>
             <FlatList
-                data={students}
+                data={rows}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 32 }}
                 ListHeaderComponent={
                     <>
-                        {/* Page Header */}
                         <PageHeader
                             title="Defaulters"
-                            subtitle="Current month fee pending"
+                            subtitle={classLabel ? `Class ${classLabel} — current month` : "Current month pending students"}
                             showBack
                         />
 
-                        {/* Class Filter */}
-                        <View style={{ marginBottom: 16 }}>
-                            <AppSelect
-                                value={selectedClass}
-                                options={classes.map((item) => ({
-                                    label: item,
-                                    value: item,
-                                }))}
-                                onChange={(value) =>
-                                    setSelectedClass(String(value))
-                                }
-                            />
-                        </View>
-
-                        {/* Alert banner */}
-                        {students.length > 0 && (
+                        {rows.length > 0 && (
                             <View
                                 style={{
                                     flexDirection: "row",
@@ -267,24 +218,9 @@ export default function DefaultersScreen() {
                                     marginBottom: 16,
                                 }}
                             >
-                                <Ionicons
-                                    name="warning-outline"
-                                    size={20}
-                                    color={Colors.danger}
-                                    style={{ marginRight: 10 }}
-                                />
-                                <Text
-                                    style={{
-                                        flex: 1,
-                                        fontSize: 13,
-                                        color: Colors.danger,
-                                        lineHeight: 18,
-                                        fontWeight: "500",
-                                    }}
-                                >
-                                    {students.length} student
-                                    {students.length !== 1 ? "s" : ""} have
-                                    outstanding fee dues. Please follow up.
+                                <Ionicons name="warning-outline" size={20} color={Colors.danger} style={{ marginRight: 10 }} />
+                                <Text style={{ flex: 1, fontSize: 13, color: Colors.danger, lineHeight: 18, fontWeight: "500" }}>
+                                    {rows.length} student{rows.length !== 1 ? "s" : ""} have outstanding fee dues. Please follow up.
                                 </Text>
                             </View>
                         )}
@@ -293,7 +229,7 @@ export default function DefaultersScreen() {
                 ListEmptyComponent={
                     <EmptyState
                         title="No Defaulters"
-                        subtitle="All students have cleared their current month dues."
+                        subtitle="All students in your class have cleared their current month dues."
                         icon="checkmark-circle-outline"
                         iconColor={Colors.success}
                         iconBgColor={Colors.successLight}

@@ -398,8 +398,8 @@ export default function DashboardScreen() {
                         />
                         <QuickAction
                             icon="people-outline"
-                            label="Teachers"
-                            onPress={() => router.push("/(admin)/teachers")}
+                            label="Class Accounts"
+                            onPress={() => router.push("/(admin)/class-accounts")}
                             accent={T.success}
                             accentBg={T.successLight}
                         />
@@ -434,10 +434,19 @@ export default function DashboardScreen() {
                     <View style={{ height: 1, backgroundColor: T.outlineVariant }} />
 
                     <ManagementRow
+                        icon="layers-outline"
+                        label="Manage Grades"
+                        sublabel="Create grades and their divisions"
+                        onPress={() => router.push("/(admin)/grades")}
+                    />
+
+                    <View style={{ height: 1, backgroundColor: T.outlineVariant }} />
+
+                    <ManagementRow
                         icon="people-outline"
-                        label="Manage Teachers"
-                        sublabel="Assign classes and payroll updates"
-                        onPress={() => router.push("/(admin)/teachers")}
+                        label="Manage Class Accounts"
+                        sublabel="View logins, reset passwords, enable/disable"
+                        onPress={() => router.push("/(admin)/class-accounts")}
                     />
                 </View>
             </ScrollView>

@@ -15,7 +15,7 @@ import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { Colors, Shadows } from "@/constants/colors";
-import { getClasses } from "@/services/class.service";
+import { getClasses, resolveClassFilter } from "@/services/class.service";
 import { downloadReportPdf } from "@/services/report-pdf.service";
 import { getReportData } from "@/services/report.service";
 import { generateDetailedReport } from "@/utils/generateDetailedReport";
@@ -123,26 +123,17 @@ export default function ReportsScreen() {
         try {
             setLoading(true);
             setError(false);
-            const { data, error } = await getReportData({ selectedClass });
+            const { gradeId, divisionId } = await resolveClassFilter(selectedClass);
+            const { data, error } = await getReportData({
+                gradeId,
+                divisionId,
+                month: selectedMonth,
+                year: selectedYear,
+            });
             if (error || !data) { console.log(error); setError(true); return; }
 
-            const summaryData = generateReportSummary({
-                students: data.students,
-                feeAssignments: data.feeAssignments,
-                transactions: data.transactions,
-                selectedMonth,
-                selectedYear,
-            });
-            setSummary(summaryData);
-
-            const detailedRows = generateDetailedReport({
-                students: data.students,
-                feeAssignments: data.feeAssignments,
-                transactions: data.transactions,
-                selectedMonth,
-                selectedYear,
-            });
-            setReportRows(detailedRows);
+            setSummary(generateReportSummary({ rows: data }));
+            setReportRows(generateDetailedReport({ rows: data }));
         } catch (err) {
             console.log(err);
             setError(true);

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { getGradeAndDivision } from "./grade.service";
 
 // ─── V2 APIs ──────────────────────────────────────────────────────────────────
 
@@ -58,4 +59,21 @@ export const getDivisionLabels = async (): Promise<string[]> => {
 export const getClasses = async (): Promise<{ data: string[]; error: any }> => {
     const labels = await getDivisionLabels();
     return { data: ["ALL", ...labels], error: null };
+};
+
+/**
+ * Resolve a compat class-label filter (e.g. "ALL" or "8-A") into
+ * {gradeId, divisionId} for screens that still use the single class-string
+ * dropdown (Defaulters, Reports) but need to query V2 grade/division ids.
+ */
+export const resolveClassFilter = async (
+    selectedClass: string
+): Promise<{ gradeId?: string; divisionId?: string }> => {
+    if (!selectedClass || selectedClass === "ALL") return {};
+
+    const [gradeName, divisionName] = selectedClass.split("-");
+    if (!gradeName || !divisionName) return {};
+
+    const { gradeId, divisionId } = await getGradeAndDivision(gradeName, divisionName);
+    return { gradeId: gradeId ?? undefined, divisionId: divisionId ?? undefined };
 };

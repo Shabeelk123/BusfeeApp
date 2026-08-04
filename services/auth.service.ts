@@ -10,10 +10,6 @@ export const logoutUser = async () => {
     return await supabase.auth.signOut();
 };
 
-export const getCurrentSession = async () => {
-    return await supabase.auth.getSession();
-};
-
 // ─── Profile lookup ───────────────────────────────────────────────────────────
 
 /**
@@ -32,20 +28,4 @@ export const getCurrentUserProfile = async () => {
         .single();
 
     return data;
-};
-
-/**
- * Fetch just the role for a given Supabase Auth UID.
- * Used by useSessionRestore for role-based routing.
- */
-export const getUserRole = async (
-    authId: string
-): Promise<{ role: string | null; error: any }> => {
-    const { data, error } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", authId)        // V2: PK = auth UID
-        .single();
-
-    return { role: data?.role ?? null, error };
 };

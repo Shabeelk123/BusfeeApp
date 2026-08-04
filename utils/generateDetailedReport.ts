@@ -1,95 +1,36 @@
-export const generateDetailedReport =
-    ({
-        students,
-        feeAssignments,
-        transactions,
-        selectedMonth,
-        selectedYear,
-    }: any) => {
-        return students.map(
-            (student: any) => {
-                // FEE
-                const feeAssignment =
-                    feeAssignments.find(
-                        (
-                            item: any
-                        ) =>
-                            item.student_id ===
-                            student.id
-                    );
+import { ReportStudentRow } from "../services/report.service";
 
-                const monthlyFee =
-                    Number(
-                        feeAssignment?.monthly_fee || 0
-                    );
+export interface DetailedReportRow {
+    studentId: string;
+    studentName: string;
+    className: string;
+    monthlyFee: number;
+    paid: number;
+    pending: number;
+    advance: number;
+    status: "Paid" | "Pending";
+}
 
-                // MONTH TRANSACTIONS
-                const studentTransactions =
-                    transactions.filter(
-                        (
-                            transaction: any
-                        ) =>
-                            transaction.student_id ===
-                            student.id &&
-                            transaction.payment_month ===
-                            selectedMonth &&
-                            transaction.payment_year ===
-                            selectedYear
-                    );
+/**
+ * Build the per-student table shown on the Reports screen and exported to
+ * the PDF, from report.service.ts::getReportData rows.
+ */
+export const generateDetailedReport = ({ rows }: { rows: ReportStudentRow[] }): DetailedReportRow[] => {
+    return rows.map((row) => {
+        const paid = row.paid_amount ?? 0;
+        const fee = row.fee ?? 0;
+        const pending = row.status === "Excluded" ? 0 : Math.max(fee - paid, 0);
+        const advance = paid > fee ? paid - fee : 0;
 
-                // PAID
-                const paid =
-                    studentTransactions.reduce(
-                        (
-                            sum: number,
-                            item: any
-                        ) =>
-                            sum +
-                            Number(
-                                item.amount
-                            ),
-                        0
-                    );
-
-                // PENDING
-                const pending =
-                    Math.max(
-                        monthlyFee -
-                        paid,
-                        0
-                    );
-
-                // ADVANCE
-                const advance =
-                    paid >
-                        monthlyFee
-                        ? paid -
-                        monthlyFee
-                        : 0;
-
-                return {
-                    studentId:
-                        student.id,
-
-                    studentName:
-                        student.full_name,
-
-                    className:
-                        student.class_name,
-
-                    monthlyFee,
-
-                    paid,
-
-                    pending,
-
-                    advance,
-
-                    status:
-                        pending > 0
-                            ? "Pending"
-                            : "Paid",
-                };
-            }
-        );
-    };
+        return {
+            studentId: row.id,
+            studentName: row.name,
+            className: `${row.grade?.name ?? "-"}-${row.division?.name ?? "-"}`,
+            monthlyFee: fee,
+            paid,
+            pending,
+            advance,
+            status: pending > 0 ? "Pending" : "Paid",
+        };
+    });
+};

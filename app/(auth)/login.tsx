@@ -136,8 +136,9 @@ export default function LoginScreen() {
             dispatch(setUser({ user: profile, role: profile.role }));
 
             if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
-            // V2 roles — use teacher dashboard as placeholder until dedicated screens are built
-            else if (profile.role === "CLASS") router.replace("/(teacher)/dashboard");
+            else if (profile.role === "CLASS") router.replace("/(class)/dashboard");
+            // COORDINATOR — temporary: routes to the teacher dashboard placeholder
+            // until the Coordinator module is built.
             else if (profile.role === "COORDINATOR") router.replace("/(teacher)/dashboard");
             else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
         } catch (err: any) {

@@ -27,8 +27,11 @@ const navigateByRole = (role: string) => {
             router.replace("/(admin)/dashboard");
             break;
         case "CLASS":
+            router.replace("/(class)/dashboard");
+            break;
         case "COORDINATOR":
-            // V2 roles — route to class/coordinator dashboard placeholder
+            // Temporary: routes to the teacher dashboard placeholder until
+            // the Coordinator module is built.
             router.replace("/(teacher)/dashboard");
             break;
         case "STUDENT":

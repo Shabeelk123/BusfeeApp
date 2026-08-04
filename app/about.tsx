@@ -195,7 +195,7 @@ export default function AboutScreen() {
                             }}
                         >
                             BusFee Tracker is a school bus fee management system that helps
-                            administrators and teachers efficiently manage student fee
+                            administrators and class accounts efficiently manage student fee
                             collections, track defaulters, and generate reports.
                         </Text>
                     </View>

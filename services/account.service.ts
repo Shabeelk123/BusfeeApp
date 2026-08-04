@@ -60,6 +60,71 @@ export const getClassAccountByUser = async (
     return { data: (data as any) ?? null, error };
 };
 
+/**
+ * Fetch the class account (grade + division) for the currently signed-in
+ * auth user. Used by the CLASS module to scope every query (students,
+ * defaulters, student creation) to the logged-in account's own class.
+ */
+export const getCurrentClassAccount = async (): Promise<{
+    data: (ClassAccount & {
+        grade: { id: string; name: string };
+        division: { id: string; name: string };
+    }) | null;
+    error: any;
+}> => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUser = sessionData?.session?.user;
+    if (!authUser) return { data: null, error: { message: "Not signed in" } };
+
+    return getClassAccountByUser(authUser.id);
+};
+
+/**
+ * Compute a class account's login email deterministically, matching the
+ * `create-grade` Edge Function's convention (`${gradeName}${divisionName}@school.com`).
+ * `users`/`class_accounts` do not store email, so it is derived rather than fetched.
+ */
+export const getClassAccountLoginId = (gradeName: string, divisionName: string): string => {
+    return `${gradeName}${divisionName}@school.com`;
+};
+
+/**
+ * Reset a class account's password.
+ *
+ * Placeholder: the `reset-class-account-password` Edge Function has not
+ * been built yet. This stub keeps the Class Accounts screen wired up
+ * so the button can be enabled the moment that function ships.
+ */
+export const resetClassAccountPassword = async (
+    accountId: string
+): Promise<{ error: any }> => {
+    console.warn(
+        "[account.service] resetClassAccountPassword: reset-class-account-password Edge Function not implemented yet."
+    );
+    return {
+        error: { message: "Password reset isn't available yet — coming soon." },
+    };
+};
+
+/**
+ * Enable or disable a class account's login access.
+ *
+ * Placeholder: no `status`/`disabled` column exists on `users` yet and no
+ * Edge Function has been built. This stub keeps the Class Accounts screen
+ * wired up so the toggle can be enabled once that infrastructure ships.
+ */
+export const setClassAccountStatus = async (
+    accountId: string,
+    enabled: boolean
+): Promise<{ error: any }> => {
+    console.warn(
+        "[account.service] setClassAccountStatus: account status Edge Function not implemented yet."
+    );
+    return {
+        error: { message: "Enable/disable isn't available yet — coming soon." },
+    };
+};
+
 // ─── Coordinator Accounts ─────────────────────────────────────────────────────
 
 /**
