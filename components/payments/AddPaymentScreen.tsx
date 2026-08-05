@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Modal,
@@ -14,8 +14,10 @@ import {
 
 import { Colors, Shadows } from "../../constants/colors";
 import { supabase } from "../../lib/supabase";
-import { collectPayment, getStudentMonthFee } from "../../services/payment.service";
+import { collectPayment, getStudentFeeLedger, getStudentMonthFee } from "../../services/payment.service";
 import { getStudentById } from "../../services/student.service";
+import { ACADEMIC_MONTH_SET, formatAcademicMonth } from "../../utils/academicYear";
+import AcademicMonthSelect from "../common/AcademicMonthSelect";
 import PageHeader from "../common/PageHeader";
 import ScreenWrapper from "../common/ScreenWrapper";
 import { useToast } from "../common/ToastContext";
@@ -25,11 +27,6 @@ import { useToast } from "../common/ToastContext";
 interface Props {
     role: "ADMIN" | "CLASS";
 }
-
-const MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-];
 
 const QUICK_AMOUNTS = ["500", "1000", "1500", "2000", "2500", "3000"];
 
@@ -64,6 +61,12 @@ function InfoPill({ label, value, tone = "neutral" }: {
 // to from a Monthly Fee Ledger row (StudentDetails) with studentId/month/year
 // route params. Updates `student_monthly_fees` + inserts `fee_transactions`
 // via payment.service.ts::collectPayment — shared by ADMIN and CLASS.
+//
+// CLASS gets an additional month picker (defaulting to the student's oldest
+// unpaid academic month) because the dashboard month a CLASS account is
+// looking at must not silently decide which month a payment posts to — see
+// activeMonth/activeYear below. ADMIN's behavior is unchanged: it always
+// uses the month/year passed in via route params, exactly as before.
 
 export default function AddPaymentScreen({ role }: Props) {
     const toast = useToast();
@@ -87,6 +90,15 @@ export default function AddPaymentScreen({ role }: Props) {
     const [submitting, setSubmitting] = useState(false);
     const [successAmount, setSuccessAmount] = useState<number | null>(null);
 
+    // The month/year the payment will actually post to. Starts out as
+    // whichever ledger row the screen was opened from; CLASS may change it
+    // via the month picker below (populated once the student's ledger loads).
+    const [activeMonth, setActiveMonth] = useState(monthNum);
+    const [activeYear, setActiveYear] = useState(yearNum);
+
+    // CLASS-only: one-time smart default to the oldest unpaid academic month.
+    const [appliedDefault, setAppliedDefault] = useState(false);
+
     const remaining = Math.max(0, fee - paidAmount);
 
     // ── Load this month's fee status ──────────────────────────────────────────
@@ -95,7 +107,7 @@ export default function AddPaymentScreen({ role }: Props) {
         try {
             const [{ data: student }, { data: smf }] = await Promise.all([
                 getStudentById(studentId),
-                getStudentMonthFee(studentId, monthNum, yearNum),
+                getStudentMonthFee(studentId, activeMonth, activeYear),
             ]);
 
             if (student) {
@@ -113,9 +125,43 @@ export default function AddPaymentScreen({ role }: Props) {
         } finally {
             setLoading(false);
         }
-    }, [studentId, monthNum, yearNum]);
+    }, [studentId, activeMonth, activeYear]);
 
     useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+    // ── CLASS-only: build the month picker + default to the oldest unpaid
+    // academic month, falling back to the month the screen was opened with
+    // (the dashboard/ledger context) if every month is already settled.
+    useEffect(() => {
+        if (role !== "CLASS" || !studentId || appliedDefault) return;
+
+        (async () => {
+            const { data: student } = await getStudentById(studentId);
+            if (!student) { setAppliedDefault(true); return; }
+
+            const { data: ledger } = await getStudentFeeLedger(
+                student.id,
+                student.monthly_fee,
+                student.created_at,
+            );
+
+            // Ledger only covers past/current months — that's fine, we just
+            // need it to find the oldest unpaid one. It is newest-first, so
+            // the oldest unpaid month is the LAST Pending/Partial entry.
+            const academic = ledger.filter((entry) => ACADEMIC_MONTH_SET.has(entry.month));
+            const oldestUnpaid = [...academic].reverse().find(
+                (entry) => entry.status === "Pending" || entry.status === "Partial",
+            );
+
+            if (oldestUnpaid) {
+                setActiveMonth(oldestUnpaid.month);
+                setActiveYear(oldestUnpaid.year);
+            }
+            // else: no pending months — keep the route-param month/year already set.
+
+            setAppliedDefault(true);
+        })();
+    }, [role, studentId, appliedDefault]);
 
     // ── Collect payment ────────────────────────────────────────────────────────
     const handleCollect = async () => {
@@ -131,8 +177,8 @@ export default function AddPaymentScreen({ role }: Props) {
 
             const { data, error } = await collectPayment({
                 studentId,
-                month: monthNum,
-                year: yearNum,
+                month: activeMonth,
+                year: activeYear,
                 amount: parsed,
                 remarks: note.trim() || undefined,
                 collectedBy: session?.user?.id,
@@ -184,9 +230,20 @@ export default function AddPaymentScreen({ role }: Props) {
                 {/* ── Header ── */}
                 <PageHeader
                     title="Collect Payment"
-                    subtitle={`${studentName || "Student"} · ${MONTHS[monthNum - 1]} ${yearNum}`}
+                    subtitle={`${studentName || "Student"} · ${formatAcademicMonth({ month: activeMonth, year: activeYear })}`}
                     showBack
                 />
+
+                {/* ── Fee Month Picker (CLASS only) ── */}
+                {role === "CLASS" && (
+                    <View style={{ marginBottom: 4 }}>
+                        <AcademicMonthSelect
+                            label="Fee Month"
+                            value={{ month: activeMonth, year: activeYear }}
+                            onChange={(m) => { setActiveMonth(m.month); setActiveYear(m.year); }}
+                        />
+                    </View>
+                )}
 
                 {/* ── Month Info Strip ── */}
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
@@ -230,7 +287,7 @@ export default function AddPaymentScreen({ role }: Props) {
                     <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.65)" />
                         <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-                            Paying for: {MONTHS[monthNum - 1]} {yearNum}
+                            Paying for: {formatAcademicMonth({ month: activeMonth, year: activeYear })}
                         </Text>
                     </View>
                 </View>
@@ -394,7 +451,7 @@ export default function AddPaymentScreen({ role }: Props) {
                         <View style={{ backgroundColor: Colors.inputBg, borderRadius: 14, padding: 14, marginBottom: 16 }}>
                             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
                                 <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.textPrimary }}>
-                                    {MONTHS[monthNum - 1]} {yearNum}
+                                    {formatAcademicMonth({ month: activeMonth, year: activeYear })}
                                 </Text>
                                 <Text style={{ fontSize: 14, fontWeight: "800", color: Colors.success }}>
                                     ₹{(successAmount ?? 0).toLocaleString()}

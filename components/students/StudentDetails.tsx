@@ -20,8 +20,8 @@ import ScreenWrapper from "../common/ScreenWrapper";
 import { useToast } from "../common/ToastContext";
 
 interface Props {
-    role: "ADMIN" | "CLASS";
-    baseRoute: "/(admin)" | "/(teacher)" | "/(class)";
+    role: "ADMIN" | "CLASS" | "COORDINATOR";
+    baseRoute: "/(admin)" | "/(teacher)" | "/(class)" | "/(coordinator)";
 }
 
 const MONTH_NAMES = [
@@ -143,10 +143,12 @@ function LedgerRow({
     entry,
     baseRoute,
     studentId,
+    canCollectPayment,
 }: {
     entry: LedgerMonth;
     baseRoute: Props["baseRoute"];
     studentId: string;
+    canCollectPayment: boolean;
 }) {
     const [expanded, setExpanded] = useState(false);
     const pending = Math.max(0, entry.fee - entry.paid_amount);
@@ -233,7 +235,7 @@ function LedgerRow({
                         </Text>
                     </View>
 
-                    {entry.status !== "Excluded" && (
+                    {canCollectPayment && entry.status !== "Excluded" && (
                         <AppButton
                             label="Collect Payment"
                             iconLeft="add-circle-outline"
@@ -262,6 +264,9 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
     const [ledger, setLedger] = useState<LedgerMonth[]>([]);
     const [loading, setLoading] = useState(true);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+    // COORDINATOR is fully read-only — ADMIN and CLASS can both collect payments.
+    const canCollectPayment = role !== "COORDINATOR";
 
     const fetchStudent = useCallback(async () => {
         try {
@@ -460,6 +465,7 @@ export default function StudentDetailsScreen({ role, baseRoute }: Props) {
                                 entry={entry}
                                 baseRoute={baseRoute}
                                 studentId={student.id}
+                                canCollectPayment={canCollectPayment}
                             />
                         ))}
                     </View>

@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 
 import AccountCard from "@/components/accounts/AccountCard";
 import ResetPasswordDialog from "@/components/accounts/ResetPasswordDialog";
+import AppButton from "@/components/common/AppButton";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
@@ -14,21 +16,22 @@ import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { Colors } from "@/constants/colors";
 import { useAccountActions } from "@/hooks/useAccountActions";
 import {
-    getClassAccountLoginId,
-    getClassAccounts,
-    resetClassAccountPassword,
-    setClassAccountStatus,
+    deleteCoordinatorAccount,
+    getCoordinatorAccountLoginId,
+    getCoordinatorAccounts,
+    resetCoordinatorAccountPassword,
+    setCoordinatorAccountStatus,
 } from "@/services/account.service";
-import { ClassAccount } from "@/types/grade";
+import { CoordinatorAccount } from "@/types/grade";
 
-type Row = ClassAccount & {
+type Row = CoordinatorAccount & {
     grade: { id: string; name: string };
-    division: { id: string; name: string };
+    user: { name: string };
     enabled: boolean;
 };
 
 // ── Screen ───────────────────────────────────────────────────────────────────
-export default function ClassAccountsScreen() {
+export default function CoordinatorAccountsScreen() {
     const [accounts, setAccounts] = useState<Row[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
@@ -38,7 +41,7 @@ export default function ClassAccountsScreen() {
         try {
             setLoading(true);
             setError(false);
-            const { data, error } = await getClassAccounts();
+            const { data, error } = await getCoordinatorAccounts();
             if (error) { setError(true); return; }
             // `enabled` is a UI-only placeholder until an account-status
             // Edge Function / column exists — every account starts active.
@@ -59,39 +62,43 @@ export default function ClassAccountsScreen() {
     const {
         toggleTarget,
         setToggleTarget,
+        deleteTarget,
+        setDeleteTarget,
         resetTarget,
         setResetTarget,
         busy,
         confirmToggle,
+        confirmDelete,
         confirmReset,
     } = useAccountActions<Row>({
-        entityLabel: (row) => `${row.grade.name}-${row.division.name}`,
-        resetPassword: resetClassAccountPassword,
-        setStatus: setClassAccountStatus,
+        entityLabel: (row) => `Grade ${row.grade.name} Coordinator`,
+        resetPassword: resetCoordinatorAccountPassword,
+        setStatus: setCoordinatorAccountStatus,
+        deleteAccount: deleteCoordinatorAccount,
         onChanged: fetchAccounts,
     });
 
     const filtered = search.trim()
         ? accounts.filter((a) => {
             const q = search.toLowerCase();
-            const loginId = getClassAccountLoginId(a.grade.name, a.division.name).toLowerCase();
+            const loginId = getCoordinatorAccountLoginId(a.grade.name).toLowerCase();
             return (
                 a.grade.name.toLowerCase().includes(q) ||
-                a.division.name.toLowerCase().includes(q) ||
+                a.user.name.toLowerCase().includes(q) ||
                 loginId.includes(q)
             );
         })
         : accounts;
 
     if (loading) {
-        return <LoadingState title="Loading Class Accounts" subtitle="Fetching class accounts..." />;
+        return <LoadingState title="Loading Coordinator Accounts" subtitle="Fetching coordinator accounts..." />;
     }
 
     if (error) {
         return (
             <ErrorState
                 title="Failed to Load"
-                subtitle="Could not fetch class accounts. Please try again."
+                subtitle="Could not fetch coordinator accounts. Please try again."
                 onRetry={fetchAccounts}
             />
         );
@@ -100,9 +107,17 @@ export default function ClassAccountsScreen() {
     return (
         <ScreenWrapper>
             <PageHeader
-                title="Class Accounts"
+                title="Coordinator Accounts"
                 subtitle={`${accounts.length} registered`}
                 showBack
+                action={
+                    <AppButton
+                        label="+ Add"
+                        onPress={() => router.push("/(admin)/coordinator-accounts/create")}
+                        size="sm"
+                        variant="primary"
+                    />
+                }
             />
 
             {/* Search Bar */}
@@ -123,7 +138,7 @@ export default function ClassAccountsScreen() {
                 <TextInput
                     value={search}
                     onChangeText={setSearch}
-                    placeholder="Search by grade, division or login ID..."
+                    placeholder="Search by grade, name or login ID..."
                     placeholderTextColor={Colors.textMuted}
                     style={{ flex: 1, fontSize: 15, color: Colors.textPrimary, paddingVertical: 10 }}
                 />
@@ -140,24 +155,26 @@ export default function ClassAccountsScreen() {
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item }) => (
                     <AccountCard
-                        badgeLabel={`${item.grade.name}${item.division.name}`}
-                        title={`Grade ${item.grade.name} · Division ${item.division.name}`}
-                        loginId={getClassAccountLoginId(item.grade.name, item.division.name)}
+                        badgeLabel={`C${item.grade.name}`}
+                        title={item.user.name}
+                        subtitle={`Grade ${item.grade.name} Coordinator`}
+                        loginId={getCoordinatorAccountLoginId(item.grade.name)}
                         enabled={item.enabled}
                         onReset={() => setResetTarget(item)}
                         onToggle={() => setToggleTarget(item)}
+                        onDelete={() => setDeleteTarget(item)}
                     />
                 )}
                 contentContainerStyle={{ paddingBottom: 32 }}
                 ListEmptyComponent={
                     <EmptyState
-                        title={search.trim() ? "No Results" : "No Class Accounts Yet"}
+                        title={search.trim() ? "No Results" : "No Coordinator Accounts Yet"}
                         subtitle={
                             search.trim()
-                                ? `No class accounts match "${search}"`
-                                : "Create a grade to generate class accounts."
+                                ? `No coordinator accounts match "${search}"`
+                                : "Add a coordinator to a grade to get started."
                         }
-                        icon="people-outline"
+                        icon="analytics-outline"
                         iconColor={Colors.primary}
                         iconBgColor={Colors.primaryLight}
                     />
@@ -169,7 +186,7 @@ export default function ClassAccountsScreen() {
                 variant={toggleTarget?.enabled ? "danger" : "warning"}
                 title={
                     toggleTarget
-                        ? `${toggleTarget.enabled ? "Disable" : "Enable"} ${toggleTarget.grade.name}-${toggleTarget.division.name}?`
+                        ? `${toggleTarget.enabled ? "Disable" : "Enable"} Grade ${toggleTarget.grade.name} Coordinator?`
                         : ""
                 }
                 subtitle="This account's ability to sign in will change immediately."
@@ -179,9 +196,24 @@ export default function ClassAccountsScreen() {
                 onCancel={() => setToggleTarget(null)}
             />
 
+            <ConfirmDialog
+                visible={!!deleteTarget}
+                variant="danger"
+                title={deleteTarget ? `Delete ${deleteTarget.user.name}?` : ""}
+                subtitle={
+                    deleteTarget
+                        ? `This removes the Grade ${deleteTarget.grade.name} coordinator account and its login. This cannot be undone.`
+                        : undefined
+                }
+                confirmLabel={busy ? "Please wait..." : "Delete"}
+                cancelLabel="Cancel"
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTarget(null)}
+            />
+
             <ResetPasswordDialog
                 visible={!!resetTarget}
-                accountLabel={resetTarget ? `${resetTarget.grade.name}-${resetTarget.division.name}` : ""}
+                accountLabel={resetTarget ? `Grade ${resetTarget.grade.name} Coordinator` : ""}
                 onConfirm={confirmReset}
                 onCancel={() => setResetTarget(null)}
             />

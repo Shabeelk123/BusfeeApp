@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     Pressable,
     ScrollView,
@@ -16,8 +17,11 @@ import LoadingState from "@/components/common/LoadingState";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 import { supabase } from "@/lib/supabase";
-import { getDashboardStats } from "@/services/dashboard.service";
+import { getRecentTransactions, RecentTransaction } from "@/services/payment.service";
+import { getReportData, ReportStudentRow } from "@/services/report.service";
 import { clearUser } from "@/store/authSlice";
+import { formatAcademicMonth, getDefaultAcademicMonth } from "@/utils/academicYear";
+import { generateReportSummary } from "@/utils/report";
 
 // ─── Design Tokens (Stitch: "High-End Fintech Mobile Admin") ──────────────────
 const T = {
@@ -69,67 +73,20 @@ const S = StyleSheet.create({
     },
 });
 
-// ─── Hero Stats Card ──────────────────────────────────────────────────────────
-function HeroCard({
-    totalCollection,
-    pendingAmount,
-}: {
-    totalCollection: number;
-    pendingAmount: number;
-}) {
-    // target = what was collected + what is still owed = total expected this period
-    const target = totalCollection + pendingAmount;
-    const pct = target > 0 ? Math.round((totalCollection / target) * 100) : 0;
+function getGreeting(): string {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+}
 
-    return (
-        <View
-            style={{
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-                backgroundColor: "#1a40c2",
-                shadowColor: "#1a40c2",
-                shadowOpacity: 0.28,
-                shadowRadius: 20,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 6,
-            }}
-        >
-            {/* Outstanding Dues */}
-            <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.7)", letterSpacing: 0.02 * 12, textTransform: "uppercase", marginBottom: 2 }}>
-                Outstanding Dues
-            </Text>
-            <Text style={{ fontSize: 32, fontWeight: "700", color: "#ffffff", letterSpacing: -0.03 * 32, marginBottom: 16 }}>
-                Rs {pendingAmount.toLocaleString()}
-            </Text>
-
-            {/* Divider */}
-            <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.15)", marginBottom: 16 }} />
-
-            {/* Total Collection (current month) */}
-            <Text style={{ fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.7)", letterSpacing: 0.02 * 12, textTransform: "uppercase", marginBottom: 2 }}>
-                This Month's Collection
-            </Text>
-            <Text style={{ fontSize: 24, fontWeight: "700", color: "#ffffff", letterSpacing: -0.02 * 24, marginBottom: 10 }}>
-                Rs {totalCollection.toLocaleString()}
-            </Text>
-
-            {/* Progress bar: collection vs total expected */}
-            <View style={{ height: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 999, overflow: "hidden" }}>
-                <View
-                    style={{
-                        width: `${pct}%`,
-                        height: 6,
-                        backgroundColor: "#ffffff",
-                        borderRadius: 999,
-                    }}
-                />
-            </View>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.65)", marginTop: 6 }}>
-                {pct}% of expected collected
-            </Text>
-        </View>
-    );
+function formatTransactionTime(iso: string): string {
+    const date = new Date(iso);
+    const now = new Date();
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay
+        ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+        : date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 // ─── Counter Tile ─────────────────────────────────────────────────────────────
@@ -161,7 +118,7 @@ function CounterTile({
             >
                 <Ionicons name={icon} size={20} color={iconColor} />
             </View>
-            <Text style={{ fontSize: 28, fontWeight: "700", color: T.onSurface, letterSpacing: -0.02 * 28 }}>
+            <Text numberOfLines={1} style={{ fontSize: 22, fontWeight: "700", color: T.onSurface, letterSpacing: -0.02 * 22 }}>
                 {value}
             </Text>
             <Text style={{ fontSize: 12, fontWeight: "600", color: T.onSurfaceVariant, marginTop: 2, letterSpacing: 0.01 }}>
@@ -199,20 +156,15 @@ function QuickAction({
         >
             <View
                 style={{
-                    width: 60,
-                    height: 60,
+                    width: 56,
+                    height: 56,
                     borderRadius: 18,
                     backgroundColor: accentBg,
                     alignItems: "center",
                     justifyContent: "center",
-                    shadowColor: accent,
-                    shadowOpacity: 0.15,
-                    shadowRadius: 8,
-                    shadowOffset: { width: 0, height: 4 },
-                    elevation: 3,
                 }}
             >
-                <Ionicons name={icon} size={26} color={accent} />
+                <Ionicons name={icon} size={24} color={accent} />
             </View>
             <Text style={{ fontSize: 12, fontWeight: "600", color: T.onSurfaceVariant, textAlign: "center" }}>
                 {label}
@@ -221,48 +173,104 @@ function QuickAction({
     );
 }
 
-// ─── Management Row Card ──────────────────────────────────────────────────────
-function ManagementRow({
-    icon,
-    label,
-    sublabel,
-    onPress,
-}: {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    sublabel: string;
-    onPress: () => void;
-}) {
+// ─── Recent Payment Row ────────────────────────────────────────────────────────
+function PaymentRow({ tx, isLast }: { tx: RecentTransaction; isLast: boolean }) {
+    const classLabel = tx.student?.grade && tx.student?.division
+        ? `${tx.student.grade.name}-${tx.student.division.name}`
+        : "-";
+
     return (
-        <Pressable
-            onPress={onPress}
-            accessibilityRole="button"
-            style={({ pressed }) => ({
+        <View
+            style={{
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 14,
-                paddingVertical: 14,
-                opacity: pressed ? 0.75 : 1,
-            })}
+                paddingVertical: 12,
+                borderBottomWidth: isLast ? 0 : 1,
+                borderBottomColor: T.outlineVariant,
+            }}
         >
             <View
                 style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    backgroundColor: T.primaryFixed,
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    backgroundColor: T.successLight,
                     alignItems: "center",
                     justifyContent: "center",
+                    marginRight: 12,
                 }}
             >
-                <Ionicons name={icon} size={22} color={T.primary} />
+                <Ionicons name="arrow-down-outline" size={18} color={T.success} />
+            </View>
+            <View style={{ flex: 1, marginRight: 8 }}>
+                <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "600", color: T.onSurface }}>
+                    {tx.student?.name ?? "Unknown Student"}
+                </Text>
+                <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 1 }}>
+                    Class {classLabel}
+                </Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: T.success }}>
+                    ₹{tx.amount.toLocaleString()}
+                </Text>
+                <Text style={{ fontSize: 11, color: T.outline, marginTop: 1 }}>
+                    {formatTransactionTime(tx.created_at)}
+                </Text>
+            </View>
+        </View>
+    );
+}
+
+// ─── Top Pending Class Row ─────────────────────────────────────────────────────
+function PendingClassRow({
+    rank,
+    label,
+    pending,
+    studentsCount,
+    isLast,
+}: {
+    rank: number;
+    label: string;
+    pending: number;
+    studentsCount: number;
+    isLast: boolean;
+}) {
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderBottomWidth: isLast ? 0 : 1,
+                borderBottomColor: T.outlineVariant,
+            }}
+        >
+            <View
+                style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 9,
+                    backgroundColor: T.errorContainer,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
+                }}
+            >
+                <Text style={{ fontSize: 12, fontWeight: "800", color: T.error }}>{rank}</Text>
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: "600", color: T.onSurface }}>{label}</Text>
-                <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 1 }}>{sublabel}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: T.onSurface }}>
+                    Class {label}
+                </Text>
+                <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 1 }}>
+                    {studentsCount} student{studentsCount === 1 ? "" : "s"} pending
+                </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={T.outline} />
-        </Pressable>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: T.error }}>
+                ₹{pending.toLocaleString()}
+            </Text>
+        </View>
     );
 }
 
@@ -270,32 +278,69 @@ function ManagementRow({
 export default function DashboardScreen() {
     const dispatch = useAppDispatch();
     const user = useAppSelector((state) => state.auth.user);
-    const [stats, setStats] = useState<any>(null);
+
+    const academicMonth = useMemo(() => getDefaultAcademicMonth(), []);
+    const today = useMemo(() => new Date(), []);
+
+    const [rows, setRows] = useState<ReportStudentRow[]>([]);
+    const [recentPayments, setRecentPayments] = useState<RecentTransaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [showDrawer, setShowDrawer] = useState(false);
     const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-    const fetchStats = async () => {
+    const fetchDashboard = useCallback(async () => {
         try {
+            setLoading(true);
             setError(false);
-            const data = await getDashboardStats();
-            setStats(data);
-        } catch (err) {
-            console.log(err);
+
+            const [reportResult, paymentsResult] = await Promise.all([
+                getReportData({ month: academicMonth.month, year: academicMonth.year }),
+                getRecentTransactions(8),
+            ]);
+
+            if (reportResult.error || !reportResult.data) { setError(true); return; }
+
+            setRows(reportResult.data);
+            setRecentPayments(paymentsResult.data);
+        } catch {
             setError(true);
         } finally {
             setLoading(false);
         }
-    };
+    }, [academicMonth]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchDashboard();
+        }, [fetchDashboard]),
+    );
+
+    const summary = useMemo(() => generateReportSummary({ rows }), [rows]);
+
+    const topPendingClasses = useMemo(() => {
+        const byClass = new Map<string, { label: string; pending: number; studentsCount: number }>();
+
+        for (const row of rows) {
+            if (row.status === "Excluded") continue;
+            const pending = Math.max(0, (row.fee ?? 0) - (row.paid_amount ?? 0));
+            if (pending <= 0) continue;
+
+            const label = `${row.grade?.name ?? "-"}-${row.division?.name ?? "-"}`;
+            const entry = byClass.get(label) ?? { label, pending: 0, studentsCount: 0 };
+            entry.pending += pending;
+            entry.studentsCount += 1;
+            byClass.set(label, entry);
+        }
+
+        return [...byClass.values()].sort((a, b) => b.pending - a.pending).slice(0, 5);
+    }, [rows]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
         dispatch(clearUser());
         router.replace("/(auth)/role-select");
     };
-
-    useEffect(() => { fetchStats(); }, []);
 
     if (loading) {
         return <LoadingState title="Loading Dashboard" subtitle="Fetching your stats..." />;
@@ -306,15 +351,10 @@ export default function DashboardScreen() {
             <ErrorState
                 title="Dashboard Unavailable"
                 subtitle="Could not load dashboard stats. Please try again."
-                onRetry={fetchStats}
+                onRetry={fetchDashboard}
             />
         );
     }
-
-    const totalCollection    = stats?.monthlyCollection   || 0;
-    const pendingAmount      = stats?.pendingAmount        || 0;
-    const totalStudents      = stats?.totalStudents        || 0;
-    const totalClassAccounts = stats?.totalClassAccounts   || 0;
 
     return (
         <ScreenWrapper backgroundColor={T.background}>
@@ -323,14 +363,18 @@ export default function DashboardScreen() {
                 contentContainerStyle={{ paddingBottom: 48 }}
             >
                 {/* ── Header ── */}
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-                    {/* Greeting */}
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, fontWeight: "600", color: T.onSurfaceVariant, letterSpacing: 0.02 * 12, textTransform: "uppercase" }}>
-                            Admin Panel
+                            {getGreeting()}
                         </Text>
                         <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 22, fontWeight: "800", color: T.onSurface, letterSpacing: -0.02 * 22 }}>
                             {user?.name ?? "Admin"}
+                        </Text>
+                        <Text style={{ marginTop: 6, fontSize: 12, color: T.onSurfaceVariant }}>
+                            {today.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
+                            {"  ·  "}
+                            {formatAcademicMonth(academicMonth)}
                         </Text>
                     </View>
 
@@ -360,94 +404,138 @@ export default function DashboardScreen() {
                     </Pressable>
                 </View>
 
-                {/* ── Hero Card: Dues + Collection ── */}
-                <HeroCard
-                    totalCollection={totalCollection}
-                    pendingAmount={pendingAmount}
-                />
-
-                {/* ── Counter Tiles ── */}
-                <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
+                {/* ── KPI Cards ── */}
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
                     <CounterTile
-                        label="Class Accounts"
-                        value={totalClassAccounts}
-                        icon="people-outline"
-                        iconColor={T.success}
-                        iconBg={T.successLight}
-                    />
-                    <CounterTile
-                        label="Enrolled Students"
-                        value={totalStudents}
+                        label="Total Students"
+                        value={summary.totalStudents}
                         icon="school-outline"
                         iconColor={T.primary}
                         iconBg={T.primaryFixed}
                     />
+                    <CounterTile
+                        label="Collected"
+                        value={`₹${summary.totalCollection.toLocaleString()}`}
+                        icon="checkmark-circle-outline"
+                        iconColor={T.success}
+                        iconBg={T.successLight}
+                    />
+                </View>
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
+                    <CounterTile
+                        label="Pending"
+                        value={`₹${summary.totalPending.toLocaleString()}`}
+                        icon="alert-circle-outline"
+                        iconColor={T.error}
+                        iconBg={T.errorContainer}
+                    />
+                    <CounterTile
+                        label="Defaulters"
+                        value={summary.defaultersCount}
+                        icon="people-outline"
+                        iconColor={T.warning}
+                        iconBg={T.warningLight}
+                    />
                 </View>
 
+                {/* ── Collection Progress ── */}
+                <View style={[S.card, { marginBottom: 20 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                        <Text style={S.sectionTitle}>Collection Progress</Text>
+                        <Text style={{ fontSize: 20, fontWeight: "800", color: T.primary }}>
+                            {summary.collectionRate}%
+                        </Text>
+                    </View>
+                    <View style={{ height: 8, backgroundColor: T.surfaceContainer, borderRadius: 999, overflow: "hidden" }}>
+                        <View
+                            style={{
+                                width: `${Math.min(summary.collectionRate, 100)}%`,
+                                height: 8,
+                                backgroundColor: T.primary,
+                                borderRadius: 999,
+                            }}
+                        />
+                    </View>
+                    <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 8 }}>
+                        ₹{summary.totalCollection.toLocaleString()} of ₹{(summary.totalCollection + summary.totalPending).toLocaleString()} expected this month
+                    </Text>
+                </View>
 
-                {/* ── Quick Actions (icon grid) ── */}
+                {/* ── Quick Actions ── */}
                 <View style={[S.card, { marginBottom: 20 }]}>
                     <Text style={S.sectionTitle}>Quick Actions</Text>
                     <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                         <QuickAction
-                            icon="school-outline"
-                            label="Students"
+                            icon="person-add-outline"
+                            label="Add Student"
                             onPress={() => router.push("/(admin)/students")}
                             accent={T.primary}
                             accentBg={T.primaryFixed}
                         />
                         <QuickAction
-                            icon="people-outline"
-                            label="Class Accounts"
-                            onPress={() => router.push("/(admin)/class-accounts")}
+                            icon="layers-outline"
+                            label="Manage Grades"
+                            onPress={() => router.push("/(admin)/grades")}
                             accent={T.success}
                             accentBg={T.successLight}
+                        />
+                        <QuickAction
+                            icon="people-outline"
+                            label="Accounts"
+                            onPress={() => router.push("/(admin)/account-management")}
+                            accent={T.info}
+                            accentBg={T.infoLight}
                         />
                         <QuickAction
                             icon="document-text-outline"
                             label="Reports"
                             onPress={() => router.push("/(admin)/reports")}
-                            accent={T.info}
-                            accentBg={T.infoLight}
-                        />
-                        <QuickAction
-                            icon="warning-outline"
-                            label="Dues"
-                            onPress={() => router.push("/(admin)/defaulters")}
                             accent={T.warning}
                             accentBg={T.warningLight}
                         />
                     </View>
                 </View>
 
-                {/* ── Quick Management (detailed rows) ── */}
+                {/* ── Recent Payments ── */}
+                <View style={[S.card, { marginBottom: 20 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                        <Text style={S.sectionTitle}>Recent Payments</Text>
+                        <Pressable onPress={() => router.push("/(admin)/reports")} accessibilityRole="button">
+                            <Text style={{ fontSize: 12, fontWeight: "700", color: T.primary }}>View All</Text>
+                        </Pressable>
+                    </View>
+
+                    {recentPayments.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: T.onSurfaceVariant, paddingVertical: 8 }}>
+                            No payments recorded yet.
+                        </Text>
+                    ) : (
+                        recentPayments.map((tx, idx) => (
+                            <PaymentRow key={tx.id} tx={tx} isLast={idx === recentPayments.length - 1} />
+                        ))
+                    )}
+                </View>
+
+                {/* ── Top Pending Classes ── */}
                 <View style={S.card}>
-                    <Text style={S.sectionTitle}>Quick Management</Text>
+                    <Text style={S.sectionTitle}>Top Pending Classes</Text>
 
-                    <ManagementRow
-                        icon="school-outline"
-                        label="Manage Students"
-                        sublabel="Edit, add or remove student profiles"
-                        onPress={() => router.push("/(admin)/students")}
-                    />
-
-                    <View style={{ height: 1, backgroundColor: T.outlineVariant }} />
-
-                    <ManagementRow
-                        icon="layers-outline"
-                        label="Manage Grades"
-                        sublabel="Create grades and their divisions"
-                        onPress={() => router.push("/(admin)/grades")}
-                    />
-
-                    <View style={{ height: 1, backgroundColor: T.outlineVariant }} />
-
-                    <ManagementRow
-                        icon="people-outline"
-                        label="Manage Class Accounts"
-                        sublabel="View logins, reset passwords, enable/disable"
-                        onPress={() => router.push("/(admin)/class-accounts")}
-                    />
+                    {topPendingClasses.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: T.onSurfaceVariant, paddingVertical: 8 }}>
+                            No outstanding dues this month.
+                        </Text>
+                    ) : (
+                        topPendingClasses.map((cls, idx) => (
+                            <PendingClassRow
+                                key={cls.label}
+                                rank={idx + 1}
+                                label={cls.label}
+                                pending={cls.pending}
+                                studentsCount={cls.studentsCount}
+                                isLast={idx === topPendingClasses.length - 1}
+                            />
+                        ))
+                    )}
                 </View>
             </ScrollView>
 

@@ -221,29 +221,29 @@ export default function StudentForm({ mode, initialValues, submitLabel, onSubmit
             <SectionCard title="School Details" icon="school-outline">
                 <AppSelect
                     label="Grade"
+                    required
+                    iconName="school-outline"
                     value={gradeId}
                     options={gradeOptions}
                     placeholder="Select grade"
+                    searchable={false}
+                    error={errors.gradeId}
+                    disabled={submitting}
                     onChange={(v) => { setGradeId(String(v)); setDivisionId(""); }}
                 />
-                {errors.gradeId && (
-                    <Text style={{ fontSize: 12, color: Colors.danger, marginTop: -12, marginBottom: 12, marginLeft: 2 }}>
-                        {errors.gradeId}
-                    </Text>
-                )}
 
                 <AppSelect
                     label="Division"
+                    required
+                    iconName="grid-outline"
                     value={divisionId}
                     options={divisionOptions}
                     placeholder={gradeId ? "Select division" : "Select a grade first"}
+                    searchable
+                    error={errors.divisionId}
+                    disabled={submitting || !gradeId}
                     onChange={(v) => setDivisionId(String(v))}
                 />
-                {errors.divisionId && (
-                    <Text style={{ fontSize: 12, color: Colors.danger, marginTop: -12, marginBottom: 12, marginLeft: 2 }}>
-                        {errors.divisionId}
-                    </Text>
-                )}
 
                 <AppInput
                     label="Monthly Fee (₹)"

@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { Division, Grade } from "../types/grade";
+import { getEdgeFunctionErrorMessage } from "../utils/edgeFunctionError";
 
 // ─── Grades ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,9 @@ export const createGrade = async ({
         body: { gradeName, divisions },
     });
 
-    if (error) return { data: null, error };
+    if (error) {
+        return { data: null, error: { message: await getEdgeFunctionErrorMessage(error, "Failed to create grade") } };
+    }
 
     if (data?.success === false) {
         return { data: null, error: { message: data.error || "Failed to create grade" } };
@@ -84,7 +87,9 @@ export const deleteGrade = async (
         body: { gradeId },
     });
 
-    if (error) return { error };
+    if (error) {
+        return { error: { message: await getEdgeFunctionErrorMessage(error, "Failed to delete grade") } };
+    }
 
     if (data?.success === false) {
         return { error: { message: data.error || "Failed to delete grade" } };

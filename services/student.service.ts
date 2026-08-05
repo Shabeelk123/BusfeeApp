@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { Student } from "../types/student";
+import { getEdgeFunctionErrorMessage } from "../utils/edgeFunctionError";
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -260,7 +261,9 @@ export const deleteStudent = async (id: string) => {
         body: { studentId: id },
     });
 
-    if (error) return { error };
+    if (error) {
+        return { error: { message: await getEdgeFunctionErrorMessage(error, "Failed to delete student") } };
+    }
 
     if (data?.success === false) {
         return { error: { message: data.error || "Failed to delete student" } };

@@ -30,9 +30,7 @@ const navigateByRole = (role: string) => {
             router.replace("/(class)/dashboard");
             break;
         case "COORDINATOR":
-            // Temporary: routes to the teacher dashboard placeholder until
-            // the Coordinator module is built.
-            router.replace("/(teacher)/dashboard");
+            router.replace("/(coordinator)/dashboard");
             break;
         case "STUDENT":
             router.replace("/(student)/dashboard");

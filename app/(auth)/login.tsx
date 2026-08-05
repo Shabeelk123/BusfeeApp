@@ -137,9 +137,7 @@ export default function LoginScreen() {
 
             if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
             else if (profile.role === "CLASS") router.replace("/(class)/dashboard");
-            // COORDINATOR — temporary: routes to the teacher dashboard placeholder
-            // until the Coordinator module is built.
-            else if (profile.role === "COORDINATOR") router.replace("/(teacher)/dashboard");
+            else if (profile.role === "COORDINATOR") router.replace("/(coordinator)/dashboard");
             else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
         } catch (err: any) {
             Alert.alert("Error", err?.message || "Something went wrong. Please try again.");

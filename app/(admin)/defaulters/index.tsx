@@ -230,6 +230,10 @@ export default function DefaultersScreen() {
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 32 }}
+                // Row cards below carry their own elevation (card shadow), which on
+                // Android wins stacking over plain zIndex — the header (and its open
+                // dropdown) needs a higher elevation too or list rows draw over it.
+                ListHeaderComponentStyle={{ zIndex: 10, elevation: 10 }}
                 ListHeaderComponent={
                     <>
                         {/* Page Header */}
@@ -240,13 +244,16 @@ export default function DefaultersScreen() {
                         />
 
                         {/* Class Filter */}
-                        <View style={{ marginBottom: 16 }}>
+                        <View style={{ marginBottom: 4 }}>
                             <AppSelect
+                                label="Class"
+                                iconName="funnel-outline"
                                 value={selectedClass}
                                 options={classes.map((item) => ({
                                     label: item,
                                     value: item,
                                 }))}
+                                searchable
                                 onChange={(value) =>
                                     setSelectedClass(String(value))
                                 }

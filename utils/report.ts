@@ -35,3 +35,32 @@ export const generateReportSummary = ({ rows }: { rows: ReportStudentRow[] }) =>
         collectionRate,
     };
 };
+
+export interface TopPendingClass {
+    label: string;
+    pending: number;
+    studentsCount: number;
+}
+
+/**
+ * Group report rows by class (grade-division) and rank by highest pending
+ * amount. Shared by the Admin and Coordinator dashboards' "Top Pending
+ * Classes" section — Coordinator's `rows` are simply pre-scoped to one grade.
+ */
+export const getTopPendingClasses = (rows: ReportStudentRow[], limit = 5): TopPendingClass[] => {
+    const byClass = new Map<string, TopPendingClass>();
+
+    for (const row of rows) {
+        if (row.status === "Excluded") continue;
+        const pending = Math.max(0, (row.fee ?? 0) - (row.paid_amount ?? 0));
+        if (pending <= 0) continue;
+
+        const label = `${row.grade?.name ?? "-"}-${row.division?.name ?? "-"}`;
+        const entry = byClass.get(label) ?? { label, pending: 0, studentsCount: 0 };
+        entry.pending += pending;
+        entry.studentsCount += 1;
+        byClass.set(label, entry);
+    }
+
+    return [...byClass.values()].sort((a, b) => b.pending - a.pending).slice(0, limit);
+};

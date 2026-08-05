@@ -4,42 +4,24 @@ import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 
+import AcademicMonthSelect from "@/components/common/AcademicMonthSelect";
 import AppDrawer from "@/components/common/AppDrawer";
-import AppSelect from "@/components/common/AppSelect";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
+import StudentFeeRow from "@/components/students/StudentFeeRow";
 import { Colors, Shadows } from "@/constants/colors";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 import { supabase } from "@/lib/supabase";
 import { getCurrentClassAccount } from "@/services/account.service";
 import { getReportData, ReportStudentRow } from "@/services/report.service";
 import { clearUser } from "@/store/authSlice";
+import { formatAcademicMonth, getDefaultAcademicMonth } from "@/utils/academicYear";
 import { generateReportSummary } from "@/utils/report";
 
-const MONTHS = [
-    { label: "January", value: 1 },
-    { label: "February", value: 2 },
-    { label: "March", value: 3 },
-    { label: "April", value: 4 },
-    { label: "May", value: 5 },
-    { label: "June", value: 6 },
-    { label: "July", value: 7 },
-    { label: "August", value: 8 },
-    { label: "September", value: 9 },
-    { label: "October", value: 10 },
-    { label: "November", value: 11 },
-    { label: "December", value: 12 },
-];
-
-const STATUS_TONE: Record<string, { color: string; bg: string }> = {
-    Paid:     { color: Colors.success, bg: Colors.successLight },
-    Partial:  { color: Colors.warning, bg: Colors.warningLight },
-    Pending:  { color: Colors.danger,  bg: Colors.dangerLight },
-    Excluded: { color: Colors.textMuted, bg: Colors.cardBorderLight },
-};
+type StatusFilter = "all" | "pending" | "paid";
 
 // ── Stat Tile ─────────────────────────────────────────────────────────────────
 function StatTile({
@@ -68,61 +50,54 @@ function StatTile({
     );
 }
 
-// ── Student Row ───────────────────────────────────────────────────────────────
-function StudentRow({ row, onPress }: { row: ReportStudentRow; onPress: () => void }) {
-    const pending = row.status === "Excluded" ? 0 : Math.max(0, (row.fee ?? 0) - (row.paid_amount ?? 0));
-    const tone = STATUS_TONE[row.status] ?? STATUS_TONE.Pending;
+// ── Status Filter Tabs ────────────────────────────────────────────────────────
+function StatusTabs({
+    value,
+    onChange,
+    allCount,
+    pendingCount,
+    paidCount,
+}: {
+    value: StatusFilter;
+    onChange: (v: StatusFilter) => void;
+    allCount: number;
+    pendingCount: number;
+    paidCount: number;
+}) {
+    const tabs: { key: StatusFilter; label: string; count: number }[] = [
+        { key: "all", label: "All", count: allCount },
+        { key: "pending", label: "Pending", count: pendingCount },
+        { key: "paid", label: "Paid", count: paidCount },
+    ];
 
     return (
-        <Pressable
-            onPress={onPress}
-            style={({ pressed }) => [
-                {
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: Colors.card,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: Colors.cardBorderLight,
-                    padding: 14,
-                    marginBottom: 10,
-                    opacity: pressed ? 0.75 : 1,
-                },
-                Shadows.card,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`View ${row.name}`}
-        >
-            <View style={{ flex: 1.4, marginRight: 8 }}>
-                <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: "700", color: Colors.textPrimary }}>
-                    {row.name}
-                </Text>
-                <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 2 }}>
-                    #{row.admission_no}
-                </Text>
-            </View>
-            <View style={{ flex: 0.9, alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 11, color: Colors.textMuted }}>Paid</Text>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: Colors.success }}>₹{row.paid_amount ?? 0}</Text>
-            </View>
-            <View style={{ flex: 0.9, alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 11, color: Colors.textMuted }}>Pending</Text>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: pending > 0 ? Colors.danger : Colors.success }}>
-                    ₹{pending}
-                </Text>
-            </View>
-            <View
-                style={{
-                    marginLeft: 10,
-                    borderRadius: 999,
-                    backgroundColor: tone.bg,
-                    paddingHorizontal: 9,
-                    paddingVertical: 4,
-                }}
-            >
-                <Text style={{ fontSize: 10, fontWeight: "800", color: tone.color }}>{row.status}</Text>
-            </View>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+            {tabs.map((tab) => {
+                const isActive = value === tab.key;
+                return (
+                    <Pressable
+                        key={tab.key}
+                        onPress={() => onChange(tab.key)}
+                        style={({ pressed }) => ({
+                            flex: 1,
+                            alignItems: "center",
+                            borderRadius: 12,
+                            paddingVertical: 10,
+                            backgroundColor: isActive ? Colors.primary : Colors.card,
+                            borderWidth: 1,
+                            borderColor: isActive ? Colors.primary : Colors.cardBorderLight,
+                            opacity: pressed ? 0.8 : 1,
+                        })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${tab.label} (${tab.count})`}
+                    >
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: isActive ? Colors.textOnDark : Colors.textPrimary }}>
+                            {tab.label} ({tab.count})
+                        </Text>
+                    </Pressable>
+                );
+            })}
+        </View>
     );
 }
 
@@ -131,9 +106,8 @@ export default function ClassDashboard() {
     const dispatch = useAppDispatch();
     const user = useAppSelector((state) => state.auth.user);
 
-    const now = new Date();
-    const [month, setMonth] = useState(now.getMonth() + 1);
-    const [year] = useState(now.getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(() => getDefaultAcademicMonth());
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
     const [classLabel, setClassLabel] = useState<string | null>(null);
     const [rows, setRows] = useState<ReportStudentRow[]>([]);
@@ -155,8 +129,8 @@ export default function ClassDashboard() {
             const { data, error } = await getReportData({
                 gradeId: account.grade_id,
                 divisionId: account.division_id,
-                month,
-                year,
+                month: selectedMonth.month,
+                year: selectedMonth.year,
             });
 
             if (error || !data) { setError(true); return; }
@@ -166,7 +140,7 @@ export default function ClassDashboard() {
         } finally {
             setLoading(false);
         }
-    }, [month, year]);
+    }, [selectedMonth]);
 
     useFocusEffect(
         useCallback(() => {
@@ -175,6 +149,18 @@ export default function ClassDashboard() {
     );
 
     const summary = useMemo(() => generateReportSummary({ rows }), [rows]);
+
+    const pendingRows = useMemo(
+        () => rows.filter((r) => r.status === "Pending" || r.status === "Partial"),
+        [rows],
+    );
+    const paidRows = useMemo(() => rows.filter((r) => r.status === "Paid"), [rows]);
+
+    const filteredRows = useMemo(() => {
+        if (statusFilter === "pending") return pendingRows;
+        if (statusFilter === "paid") return paidRows;
+        return rows;
+    }, [statusFilter, rows, pendingRows, paidRows]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -199,12 +185,16 @@ export default function ClassDashboard() {
     return (
         <ScreenWrapper>
             <FlatList
-                data={rows}
+                data={filteredRows}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 32 }}
+                // Row cards below carry their own elevation (card shadow), which on
+                // Android wins stacking over plain zIndex — the header (and its open
+                // dropdown) needs a higher elevation too or list rows draw over it.
+                ListHeaderComponentStyle={{ zIndex: 10, elevation: 10 }}
                 renderItem={({ item }) => (
-                    <StudentRow
+                    <StudentFeeRow
                         row={item}
                         onPress={() =>
                             router.push({
@@ -302,19 +292,26 @@ export default function ClassDashboard() {
                             />
                         </View>
 
-                        {/* ── Month Filter ── */}
+                        {/* ── Academic Month Filter ── */}
                         <View style={{ marginBottom: 4 }}>
-                            <AppSelect
+                            <AcademicMonthSelect
                                 label="Month"
-                                value={month}
-                                options={MONTHS}
-                                searchable={false}
-                                onChange={(value) => setMonth(Number(value))}
+                                value={selectedMonth}
+                                onChange={setSelectedMonth}
                             />
                         </View>
 
+                        {/* ── Status Filter Tabs ── */}
+                        <StatusTabs
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            allCount={rows.length}
+                            pendingCount={pendingRows.length}
+                            paidCount={paidRows.length}
+                        />
+
                         <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.textPrimary, marginBottom: 10 }}>
-                            Students — {MONTHS[month - 1].label} {year}
+                            Students — {formatAcademicMonth(selectedMonth)}
                         </Text>
                     </>
                 }

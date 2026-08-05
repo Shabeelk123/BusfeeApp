@@ -282,3 +282,64 @@ export const excludeStudentMonth = async (
         reason,
     }]);
 };
+
+// ─── Recent Activity (Admin Dashboard) ─────────────────────────────────────────
+
+export interface RecentTransaction {
+    id: string;
+    amount: number;
+    payment_date: string;
+    created_at: string;
+    remarks?: string | null;
+    student: { id: string; name: string; grade?: { name: string }; division?: { name: string } } | null;
+}
+
+/**
+ * Latest fee_transactions, newest first, with the paying student's
+ * name/class joined in. Used by the Admin dashboard's "Recent Payments"
+ * section (whole school) and the Coordinator dashboard's "Recent
+ * Collections" section (`gradeId` scopes it to the coordinator's grade).
+ */
+export const getRecentTransactions = async (
+    limit = 8,
+    gradeId?: string
+): Promise<{ data: RecentTransaction[]; error: any }> => {
+    let query = supabase
+        .from("fee_transactions")
+        .select(`
+            id,
+            amount,
+            payment_date,
+            created_at,
+            remarks,
+            student_monthly_fee:student_monthly_fees!inner(
+                student:students!inner(
+                    id,
+                    name,
+                    grade:grades(name),
+                    division:divisions(name)
+                )
+            )
+        `)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+    if (gradeId) {
+        query = query.eq("student_monthly_fee.student.grade_id", gradeId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) return { data: [], error };
+
+    const rows: RecentTransaction[] = (data ?? []).map((t: any) => ({
+        id: t.id,
+        amount: t.amount,
+        payment_date: t.payment_date,
+        created_at: t.created_at,
+        remarks: t.remarks,
+        student: t.student_monthly_fee?.student ?? null,
+    }));
+
+    return { data: rows, error: null };
+};
