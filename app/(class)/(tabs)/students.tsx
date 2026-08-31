@@ -10,9 +10,18 @@ import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import StudentsList from "@/components/students/StudentsList";
-import { Colors } from "@/constants/colors";
 import { getCurrentClassAccount } from "@/services/account.service";
 import { getStudents } from "@/services/student.service";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background: "#f7fafc",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+} as const;
 
 export default function ClassStudentsScreen() {
     const [students, setStudents] = useState<any[]>([]);
@@ -87,12 +96,11 @@ export default function ClassStudentsScreen() {
     }
 
     return (
-        <ScreenWrapper>
-            {/* Header */}
+        <ScreenWrapper backgroundColor={T.background}>
+            {/* Header — no back chevron, this is a primary tab now */}
             <PageHeader
                 title="My Students"
                 subtitle={classLabel ? `Class ${classLabel} · ${students.length} students` : `${students.length} students`}
-                showBack
             />
 
             {/* Search Bar */}
@@ -100,10 +108,10 @@ export default function ClassStudentsScreen() {
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: Colors.card,
+                    backgroundColor: "#ffffff",
                     borderRadius: 12,
                     borderWidth: 1.5,
-                    borderColor: Colors.inputBorder,
+                    borderColor: T.outline,
                     paddingHorizontal: 14,
                     minHeight: 48,
                     marginBottom: 16,
@@ -112,18 +120,18 @@ export default function ClassStudentsScreen() {
                 <Ionicons
                     name="search"
                     size={18}
-                    color={Colors.iconDefault}
+                    color={T.onSurfaceVariant}
                     style={{ marginRight: 10 }}
                 />
                 <TextInput
                     value={search}
                     onChangeText={handleSearch}
                     placeholder="Search by name or admission number..."
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={T.onSurfaceVariant}
                     style={{
                         flex: 1,
                         fontSize: 15,
-                        color: Colors.textPrimary,
+                        color: T.onSurface,
                         paddingVertical: 10,
                     }}
                 />
@@ -136,7 +144,7 @@ export default function ClassStudentsScreen() {
                         <Ionicons
                             name="close-circle"
                             size={18}
-                            color={Colors.textMuted}
+                            color={T.onSurfaceVariant}
                         />
                     </Pressable>
                 )}
@@ -161,8 +169,8 @@ export default function ClassStudentsScreen() {
                                 : "No students assigned to your class yet."
                         }
                         icon="school-outline"
-                        iconColor={Colors.primary}
-                        iconBgColor={Colors.primaryLight}
+                        iconColor={T.navy}
+                        iconBgColor={T.navyLight}
                     />
                 }
             />

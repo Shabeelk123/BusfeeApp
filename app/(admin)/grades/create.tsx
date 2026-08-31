@@ -14,8 +14,21 @@ import AppInput from "@/components/common/AppInput";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useToast } from "@/components/common/ToastContext";
-import { Colors, Shadows } from "@/constants/colors";
 import { createGrade } from "@/services/grade.service";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background:  "#f7fafc",
+    navy:        "#1a2b48",
+    navyLight:   "#e8ebf2",
+    onSurface:   "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline:     "#e2e8f0",
+    success:     "#2d7a4d",
+    successLight:"#e3f3e9",
+    warning:     "#b7791f",
+    warningLight:"#fdf3e0",
+} as const;
 
 const DIVISION_LETTERS = "ABCDEFGHIJKLMNOPQ".split(""); // A–Q, matches schema comment
 
@@ -23,63 +36,6 @@ interface CreatedAccount {
     class: string;
     email: string;
     password: string;
-}
-
-// ── Section Card ─────────────────────────────────────────────────────
-function SectionCard({
-    title,
-    icon,
-    children,
-}: {
-    title: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    children: React.ReactNode;
-}) {
-    return (
-        <View style={{ marginBottom: 20 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-                <View
-                    style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: Colors.primaryLight,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginRight: 8,
-                    }}
-                >
-                    <Ionicons name={icon} size={15} color={Colors.primary} />
-                </View>
-                <Text
-                    style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: Colors.textSecondary,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                    }}
-                >
-                    {title}
-                </Text>
-            </View>
-
-            <View
-                style={[
-                    {
-                        backgroundColor: Colors.card,
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: Colors.cardBorderLight,
-                    },
-                    Shadows.card,
-                ]}
-            >
-                {children}
-            </View>
-        </View>
-    );
 }
 
 // ── Credential Row ───────────────────────────────────────────────────
@@ -91,7 +47,7 @@ function CredentialRow({ account }: { account: CreatedAccount }) {
                 alignItems: "center",
                 paddingVertical: 12,
                 borderBottomWidth: 1,
-                borderBottomColor: Colors.cardBorderLight,
+                borderBottomColor: T.outline,
             }}
         >
             <View
@@ -99,21 +55,21 @@ function CredentialRow({ account }: { account: CreatedAccount }) {
                     width: 40,
                     height: 40,
                     borderRadius: 10,
-                    backgroundColor: Colors.successLight,
+                    backgroundColor: T.successLight,
                     alignItems: "center",
                     justifyContent: "center",
                     marginRight: 12,
                 }}
             >
-                <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.success }}>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: T.success }}>
                     {account.class}
                 </Text>
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.textPrimary }}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: T.onSurface }}>
                     {account.email}
                 </Text>
-                <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>
+                <Text style={{ fontSize: 13, color: T.onSurfaceVariant, marginTop: 2 }}>
                     {account.password}
                 </Text>
             </View>
@@ -176,10 +132,10 @@ export default function CreateGradeScreen() {
 
     if (loading) {
         return (
-            <ScreenWrapper>
+            <ScreenWrapper backgroundColor={T.background}>
                 <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 14 }}>
+                    <ActivityIndicator size="large" color={T.navy} />
+                    <Text style={{ marginTop: 12, color: T.onSurfaceVariant, fontSize: 14 }}>
                         Creating grade and class accounts...
                     </Text>
                 </View>
@@ -190,156 +146,165 @@ export default function CreateGradeScreen() {
     // ── Success view: generated credentials ──
     if (createdAccounts) {
         return (
-            <ScreenWrapper>
+            <ScreenWrapper backgroundColor={T.background}>
                 <KeyboardAwareScrollView
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 48 }}
                 >
-                    <PageHeader
-                        title="Grade Created"
-                        subtitle={`${createdAccounts.length} class account(s) generated`}
-                    />
-
-                    <SectionCard title="Class Account Credentials" icon="key-outline">
-                        {createdAccounts.map((a) => (
-                            <CredentialRow key={a.email} account={a} />
-                        ))}
-                    </SectionCard>
-
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "flex-start",
-                            borderRadius: 12,
-                            backgroundColor: Colors.warningLight,
-                            borderWidth: 1,
-                            borderColor: Colors.warningBorder,
-                            padding: 14,
-                            marginBottom: 24,
-                        }}
-                    >
-                        <Ionicons
-                            name="warning-outline"
-                            size={18}
-                            color={Colors.warning}
-                            style={{ marginRight: 10, marginTop: 1 }}
+                    <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
+                        <PageHeader
+                            title="Grade Created"
+                            subtitle={`${createdAccounts.length} class account(s) generated`}
                         />
-                        <Text style={{ flex: 1, fontSize: 12, color: Colors.warning, lineHeight: 18 }}>
-                            Save these credentials now — passwords aren't shown again after you leave this screen.
-                        </Text>
-                    </View>
 
-                    <AppButton
-                        label="Done"
-                        onPress={() => router.replace("/(admin)/grades")}
-                        fullWidth
-                        iconLeft="checkmark-circle-outline"
-                    />
+                        <View
+                            style={{
+                                backgroundColor: "#ffffff",
+                                borderRadius: 16,
+                                padding: 16,
+                                borderWidth: 1,
+                                borderColor: T.outline,
+                                marginBottom: 14,
+                            }}
+                        >
+                            {createdAccounts.map((a) => (
+                                <CredentialRow key={a.email} account={a} />
+                            ))}
+                        </View>
+
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "flex-start",
+                                borderRadius: 12,
+                                backgroundColor: T.warningLight,
+                                borderWidth: 1,
+                                borderColor: T.warning,
+                                padding: 14,
+                                marginBottom: 20,
+                            }}
+                        >
+                            <Ionicons
+                                name="warning-outline"
+                                size={18}
+                                color={T.warning}
+                                style={{ marginRight: 10, marginTop: 1 }}
+                            />
+                            <Text style={{ flex: 1, fontSize: 12, color: T.warning, lineHeight: 18 }}>
+                                Save these credentials now — passwords aren't shown again after you leave this screen.
+                            </Text>
+                        </View>
+
+                        <AppButton
+                            label="Done"
+                            onPress={() => router.replace("/(admin)/grades")}
+                            fullWidth
+                            variant="navy"
+                            iconLeft="checkmark-circle-outline"
+                        />
+                    </View>
                 </KeyboardAwareScrollView>
             </ScreenWrapper>
         );
     }
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <KeyboardAwareScrollView
                 enableOnAndroid
                 extraScrollHeight={40}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 48 }}
+                contentContainerStyle={{ paddingBottom: 32 }}
             >
-                <PageHeader
-                    title="Add Grade"
-                    subtitle="Create a grade and its class accounts"
-                    showBack
-                />
+                <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
+                    <PageHeader title="Add Grade" showBack />
 
-                <SectionCard title="Grade Information" icon="school-outline">
-                    <AppInput
-                        label="Grade Name"
-                        required
-                        iconName="book-outline"
-                        value={gradeName}
-                        onChangeText={setGradeName}
-                        placeholder="e.g. 8, 9, 10"
-                        autoCapitalize="none"
-                        error={gradeNameError}
-                        editable={!loading}
-                    />
-                </SectionCard>
+                    {/* One flat card — grade name + division picker, no section headings */}
+                    <View
+                        style={{
+                            backgroundColor: "#ffffff",
+                            borderRadius: 16,
+                            padding: 16,
+                            paddingBottom: 4,
+                            borderWidth: 1,
+                            borderColor: T.outline,
+                            marginBottom: 14,
+                        }}
+                    >
+                        <AppInput
+                            label="Grade Name"
+                            required
+                            iconName="book-outline"
+                            value={gradeName}
+                            onChangeText={setGradeName}
+                            placeholder="e.g. 8, 9, 10"
+                            autoCapitalize="none"
+                            error={gradeNameError}
+                            editable={!loading}
+                        />
 
-                <SectionCard title="Divisions" icon="grid-outline">
-                    <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 12 }}>
-                        Select one or more divisions. A class account is created for each.
-                    </Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                        {DIVISION_LETTERS.map((letter) => {
-                            const selected = selectedDivisions.includes(letter);
-                            return (
-                                <Pressable
-                                    key={letter}
-                                    onPress={() => toggleDivision(letter)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Toggle division ${letter}`}
-                                    style={({ pressed }) => ({
-                                        width: 44,
-                                        height: 44,
-                                        borderRadius: 12,
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        backgroundColor: selected ? Colors.primary : Colors.inputBg,
-                                        borderWidth: 1.5,
-                                        borderColor: selected ? Colors.primary : Colors.inputBorder,
-                                        opacity: pressed ? 0.8 : 1,
-                                    })}
-                                >
-                                    <Text
-                                        style={{
-                                            fontSize: 15,
-                                            fontWeight: "700",
-                                            color: selected ? Colors.textOnDark : Colors.textPrimary,
-                                        }}
+                        <Text style={{ fontSize: 13, fontWeight: "600", color: T.onSurface, marginBottom: 8, marginLeft: 2 }}>
+                            Divisions<Text style={{ color: "#e53e3e" }}> *</Text>
+                        </Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                            {DIVISION_LETTERS.map((letter) => {
+                                const selected = selectedDivisions.includes(letter);
+                                return (
+                                    <Pressable
+                                        key={letter}
+                                        onPress={() => toggleDivision(letter)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Toggle division ${letter}`}
+                                        style={({ pressed }) => ({
+                                            width: 40,
+                                            height: 40,
+                                            borderRadius: 11,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            backgroundColor: selected ? T.navy : "#ffffff",
+                                            borderWidth: 1.5,
+                                            borderColor: selected ? T.navy : T.outline,
+                                            opacity: pressed ? 0.8 : 1,
+                                        })}
                                     >
-                                        {letter}
-                                    </Text>
-                                </Pressable>
-                            );
-                        })}
+                                        <Text
+                                            style={{
+                                                fontSize: 14,
+                                                fontWeight: "700",
+                                                color: selected ? "#ffffff" : T.onSurface,
+                                            }}
+                                        >
+                                            {letter}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
                     </View>
-                </SectionCard>
 
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        borderRadius: 12,
-                        backgroundColor: Colors.primaryLight,
-                        borderWidth: 1,
-                        borderColor: Colors.primaryBorder,
-                        padding: 14,
-                        marginBottom: 24,
-                    }}
-                >
-                    <Ionicons
-                        name="information-circle-outline"
-                        size={18}
-                        color={Colors.primary}
-                        style={{ marginRight: 10, marginTop: 1 }}
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, paddingHorizontal: 2 }}>
+                        <Ionicons
+                            name="information-circle-outline"
+                            size={14}
+                            color={T.navy}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text style={{ flex: 1, fontSize: 11.5, color: T.navy, lineHeight: 15 }}>
+                            A class account is created per division; logins are shown after creation.
+                        </Text>
+                    </View>
+
+                    <AppButton
+                        label="Create Grade"
+                        onPress={handleCreate}
+                        loading={loading}
+                        disabled={loading}
+                        fullWidth
+                        variant="navy"
+                        iconLeft="add-circle-outline"
                     />
-                    <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
-                        Each division gets its own class account, with login credentials shown after creation.
-                    </Text>
                 </View>
-
-                <AppButton
-                    label="Create Grade"
-                    onPress={handleCreate}
-                    loading={loading}
-                    disabled={loading}
-                    fullWidth
-                    iconLeft="add-circle-outline"
-                />
             </KeyboardAwareScrollView>
         </ScreenWrapper>
     );

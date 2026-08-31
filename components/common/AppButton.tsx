@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Pressable, Text } from "react-native";
 import { Colors } from "../../constants/colors";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "danger" | "ghost" | "navy" | "accent";
 type Size = "sm" | "md" | "lg";
 
 interface Props {
@@ -17,11 +17,17 @@ interface Props {
     fullWidth?: boolean;
 }
 
+// "navy"/"accent" match the Stitch "Academic Transit Logistics" palette used
+// by the redesigned Admin Dashboard/Students screens — deep navy primary,
+// bus-yellow secondary. Kept as opt-in variants (existing screens are
+// unaffected) rather than changing `primary`'s global blue.
 const VARIANT_STYLES: Record<Variant, { bg: string; text: string; border?: string }> = {
     primary:   { bg: Colors.primary,   text: Colors.textOnDark },
     secondary: { bg: Colors.card,      text: Colors.textPrimary, border: Colors.cardBorder },
     danger:    { bg: Colors.danger,    text: Colors.textOnDark },
     ghost:     { bg: "transparent",    text: Colors.primary },
+    navy:      { bg: "#1a2b48",        text: "#ffffff" },
+    accent:    { bg: "#fdb813",        text: "#031632" },
 };
 
 const SIZE_STYLES: Record<Size, { py: number; px: number; text: number; icon: number; radius: number }> = {
@@ -68,7 +74,7 @@ export default function AppButton({
         >
             {loading ? (
                 <ActivityIndicator
-                    color={variant === "secondary" || variant === "ghost" ? Colors.primary : Colors.textOnDark}
+                    color={v.text}
                     size="small"
                 />
             ) : (

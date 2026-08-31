@@ -11,72 +11,15 @@ import AppSelect, { DropdownOption } from "@/components/common/AppSelect";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useToast } from "@/components/common/ToastContext";
-import { Colors, Shadows } from "@/constants/colors";
 import { createCoordinator } from "@/services/account.service";
 import { getGrades } from "@/services/grade.service";
 
-// ── Section Card ─────────────────────────────────────────────────────
-function SectionCard({
-    title,
-    icon,
-    children,
-    zIndex,
-}: {
-    title: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    children: React.ReactNode;
-    /** Bumps stacking order above sibling cards below it — needed when this
-     *  card holds an AppSelect, since on Android a sibling card's own
-     *  `elevation` (from Shadows.card) otherwise wins over the dropdown's
-     *  zIndex and paints on top of it. */
-    zIndex?: number;
-}) {
-    return (
-        <View style={{ marginBottom: 20, zIndex, elevation: zIndex }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-                <View
-                    style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: Colors.primaryLight,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginRight: 8,
-                    }}
-                >
-                    <Ionicons name={icon} size={15} color={Colors.primary} />
-                </View>
-                <Text
-                    style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: Colors.textSecondary,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                    }}
-                >
-                    {title}
-                </Text>
-            </View>
-
-            <View
-                style={[
-                    {
-                        backgroundColor: Colors.card,
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: Colors.cardBorderLight,
-                    },
-                    Shadows.card,
-                ]}
-            >
-                {children}
-            </View>
-        </View>
-    );
-}
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background:  "#f7fafc",
+    navy:        "#1a2b48",
+    outline:     "#e2e8f0",
+} as const;
 
 interface FormErrors {
     gradeId?: string;
@@ -160,102 +103,105 @@ export default function CreateCoordinatorScreen() {
     }, [gradeId, coordinatorName, password, validate, toast]);
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <KeyboardAwareScrollView
                 enableOnAndroid
                 extraScrollHeight={40}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 48 }}
+                contentContainerStyle={{ paddingBottom: 32 }}
             >
-                <PageHeader
-                    title="Add Coordinator"
-                    subtitle="Create a coordinator account for a grade"
-                    showBack
-                />
+                <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
+                    <PageHeader title="Add Coordinator" showBack />
 
-                <SectionCard title="Coordinator Information" icon="analytics-outline" zIndex={10}>
-                    <AppSelect
-                        label="Grade"
-                        required
-                        iconName="school-outline"
-                        value={gradeId}
-                        options={gradeOptions}
-                        placeholder="Select grade"
-                        searchable={false}
-                        error={errors.gradeId}
+                    {/* One flat card — grade, name and password, no section headings */}
+                    <View
+                        style={{
+                            backgroundColor: "#ffffff",
+                            borderRadius: 16,
+                            padding: 16,
+                            paddingBottom: 4,
+                            borderWidth: 1,
+                            borderColor: T.outline,
+                            marginBottom: 14,
+                        }}
+                    >
+                        <AppSelect
+                            label="Grade"
+                            required
+                            iconName="school-outline"
+                            value={gradeId}
+                            options={gradeOptions}
+                            placeholder="Select grade"
+                            searchable={false}
+                            error={errors.gradeId}
+                            disabled={submitting}
+                            onChange={(v) => setGradeId(String(v))}
+                        />
+
+                        <AppInput
+                            label="Coordinator Name"
+                            required
+                            iconName="person-outline"
+                            value={coordinatorName}
+                            onChangeText={setCoordinatorName}
+                            placeholder="e.g. Anitha Menon"
+                            autoCapitalize="words"
+                            error={errors.coordinatorName}
+                            editable={!submitting}
+                        />
+
+                        <View style={{ flexDirection: "row", gap: 12 }}>
+                            <View style={{ flex: 1 }}>
+                                <PasswordField
+                                    label="Password"
+                                    required
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    placeholder="Min. 8 characters"
+                                    error={errors.password}
+                                    editable={!submitting}
+                                    visible={showPassword}
+                                    onToggleVisible={() => setShowPassword((v) => !v)}
+                                />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <PasswordField
+                                    label="Confirm"
+                                    required
+                                    value={confirmPassword}
+                                    onChangeText={setConfirmPassword}
+                                    placeholder="Re-enter"
+                                    error={errors.confirmPassword}
+                                    editable={!submitting}
+                                    visible={showPassword}
+                                />
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, paddingHorizontal: 2 }}>
+                        <Ionicons
+                            name="information-circle-outline"
+                            size={14}
+                            color={T.navy}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text style={{ flex: 1, fontSize: 11.5, color: T.navy, lineHeight: 15 }}>
+                            Login email is generated from the grade — one coordinator per grade.
+                        </Text>
+                    </View>
+
+                    <AppButton
+                        label="Create Coordinator"
+                        onPress={handleCreate}
+                        loading={submitting}
                         disabled={submitting}
-                        onChange={(v) => setGradeId(String(v))}
+                        fullWidth
+                        variant="navy"
+                        iconLeft="person-add-outline"
                     />
-
-                    <AppInput
-                        label="Coordinator Name"
-                        required
-                        iconName="person-outline"
-                        value={coordinatorName}
-                        onChangeText={setCoordinatorName}
-                        placeholder="e.g. Anitha Menon"
-                        autoCapitalize="words"
-                        error={errors.coordinatorName}
-                        editable={!submitting}
-                    />
-                </SectionCard>
-
-                <SectionCard title="Login Password" icon="key-outline">
-                    <PasswordField
-                        label="Password"
-                        required
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholder="Min. 8 characters"
-                        error={errors.password}
-                        editable={!submitting}
-                        visible={showPassword}
-                        onToggleVisible={() => setShowPassword((v) => !v)}
-                    />
-                    <PasswordField
-                        label="Confirm Password"
-                        required
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        placeholder="Re-enter password"
-                        error={errors.confirmPassword}
-                        editable={!submitting}
-                        visible={showPassword}
-                    />
-                </SectionCard>
-
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        borderRadius: 12,
-                        backgroundColor: Colors.primaryLight,
-                        borderWidth: 1,
-                        borderColor: Colors.primaryBorder,
-                        padding: 14,
-                        marginBottom: 24,
-                    }}
-                >
-                    <Ionicons
-                        name="information-circle-outline"
-                        size={18}
-                        color={Colors.primary}
-                        style={{ marginRight: 10, marginTop: 1 }}
-                    />
-                    <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
-                        The login email is generated automatically from the grade. Each grade can have only one coordinator.
-                    </Text>
                 </View>
-
-                <AppButton
-                    label="Create Coordinator"
-                    onPress={handleCreate}
-                    loading={submitting}
-                    disabled={submitting}
-                    fullWidth
-                    iconLeft="person-add-outline"
-                />
             </KeyboardAwareScrollView>
         </ScreenWrapper>
     );

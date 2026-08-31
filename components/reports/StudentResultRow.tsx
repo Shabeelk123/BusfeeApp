@@ -1,13 +1,25 @@
 import { Text, View } from "react-native";
 
-import { Colors } from "../../constants/colors";
 import { DetailedReportRow } from "../../utils/generateDetailedReport";
 
+const T = {
+    outline: "#e2e8f0",
+    onSurface: "#181c1e",
+    success: "#2d7a4d",
+    successLight: "#e3f3e9",
+    warning: "#b7791f",
+    warningLight: "#fdf3e0",
+    danger: "#e53e3e",
+    dangerLight: "#fdeaea",
+    muted: "#8a8d93",
+    mutedLight: "#eef0f2",
+} as const;
+
 const STATUS_TONE: Record<string, { color: string; bg: string }> = {
-    Paid:     { color: Colors.success, bg: Colors.successLight },
-    Partial:  { color: Colors.warning, bg: Colors.warningLight },
-    Pending:  { color: Colors.danger,  bg: Colors.dangerLight },
-    Excluded: { color: Colors.textMuted, bg: Colors.cardBorderLight },
+    Paid:     { color: T.success, bg: T.successLight },
+    Partial:  { color: T.warning, bg: T.warningLight },
+    Pending:  { color: T.danger,  bg: T.dangerLight },
+    Excluded: { color: T.muted,   bg: T.mutedLight },
 };
 
 /**
@@ -23,13 +35,13 @@ export default function StudentResultRow({ row, isLast }: { row: DetailedReportR
                 alignItems: "center",
                 paddingVertical: 10,
                 borderBottomWidth: isLast ? 0 : 1,
-                borderBottomColor: Colors.cardBorderLight,
+                borderBottomColor: T.outline,
             }}
         >
-            <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "600", color: Colors.textPrimary, marginRight: 8 }}>
+            <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "600", color: T.onSurface, marginRight: 8 }}>
                 {row.studentName}
             </Text>
-            <Text style={{ width: 64, textAlign: "right", fontSize: 12, fontWeight: "700", color: Colors.success }}>
+            <Text style={{ width: 64, textAlign: "right", fontSize: 12, fontWeight: "700", color: T.success }}>
                 ₹{row.paid}
             </Text>
             <View

@@ -3,7 +3,17 @@ import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { Colors, Shadows } from "@/constants/colors";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background: "#f7fafc",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    muted: "#8a8d93",
+    outline: "#e2e8f0",
+} as const;
 
 const APP_VERSION = "1.0.0";
 const WEBSITE_URL = "https://busfeeapp.netlify.app";
@@ -21,39 +31,36 @@ function InfoRow({
 }) {
     const content = (
         <View
-            style={[
-                {
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    gap: 14,
-                    backgroundColor: Colors.card,
-                },
-                Shadows.card,
-            ]}
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                gap: 14,
+                backgroundColor: "#ffffff",
+            }}
         >
             <View
                 style={{
                     width: 38,
                     height: 38,
                     borderRadius: 11,
-                    backgroundColor: Colors.primaryLight,
+                    backgroundColor: T.navyLight,
                     alignItems: "center",
                     justifyContent: "center",
                 }}
             >
-                <Ionicons name={icon} size={18} color={Colors.primary} />
+                <Ionicons name={icon} size={18} color={T.navy} />
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: Colors.textMuted, fontWeight: "500" }}>
+                <Text style={{ fontSize: 12, color: T.muted, fontWeight: "500" }}>
                     {label}
                 </Text>
                 <Text
                     style={{
                         fontSize: 14,
                         fontWeight: "600",
-                        color: onPress ? Colors.primary : Colors.textPrimary,
+                        color: onPress ? T.navy : T.onSurface,
                         marginTop: 1,
                     }}
                 >
@@ -61,7 +68,7 @@ function InfoRow({
                 </Text>
             </View>
             {onPress && (
-                <Ionicons name="open-outline" size={16} color={Colors.primary} />
+                <Ionicons name="open-outline" size={16} color={T.navy} />
             )}
         </View>
     );
@@ -90,7 +97,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
                     fontWeight: "700",
                     letterSpacing: 1.5,
                     textTransform: "uppercase",
-                    color: Colors.textMuted,
+                    color: T.muted,
                     marginBottom: 10,
                     marginLeft: 4,
                 }}
@@ -101,7 +108,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
                 style={{
                     borderRadius: 16,
                     borderWidth: 1,
-                    borderColor: Colors.cardBorderLight,
+                    borderColor: T.outline,
                     overflow: "hidden",
                 }}
             >
@@ -113,7 +120,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function AboutScreen() {
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
@@ -122,16 +129,13 @@ export default function AboutScreen() {
 
                 {/* App hero */}
                 <View
-                    style={[
-                        {
-                            borderRadius: 20,
-                            backgroundColor: Colors.primary,
-                            padding: 24,
-                            marginBottom: 28,
-                            alignItems: "center",
-                        },
-                        Shadows.cardMd,
-                    ]}
+                    style={{
+                        borderRadius: 20,
+                        backgroundColor: T.navy,
+                        padding: 24,
+                        marginBottom: 24,
+                        alignItems: "center",
+                    }}
                 >
                     <View
                         style={{
@@ -170,7 +174,7 @@ export default function AboutScreen() {
                 {/* App Info */}
                 <Section title="Application">
                     <InfoRow icon="information-circle-outline" label="Version" value={APP_VERSION} />
-                    <View style={{ height: 1, backgroundColor: Colors.cardBorderLight }} />
+                    <View style={{ height: 1, backgroundColor: T.outline }} />
                     <InfoRow
                         icon="globe-outline"
                         label="Website"
@@ -183,14 +187,14 @@ export default function AboutScreen() {
                 <Section title="About This App">
                     <View
                         style={{
-                            padding: 10,
-                            backgroundColor: Colors.card,
+                            padding: 14,
+                            backgroundColor: "#ffffff",
                         }}
                     >
                         <Text
                             style={{
                                 fontSize: 14,
-                                color: Colors.textSecondary,
+                                color: T.onSurfaceVariant,
                                 lineHeight: 22,
                             }}
                         >
@@ -205,7 +209,7 @@ export default function AboutScreen() {
                     style={{
                         textAlign: "center",
                         fontSize: 12,
-                        color: Colors.textDisabled,
+                        color: T.muted,
                     }}
                 >
                     © {new Date().getFullYear()} BusFee Tracker. All rights reserved.

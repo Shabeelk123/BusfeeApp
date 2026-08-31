@@ -7,7 +7,14 @@ import {
     Text,
     View,
 } from "react-native";
-import { Colors, Shadows } from "../../constants/colors";
+import { Colors } from "../../constants/colors";
+
+// Navy accent (Stitch "Academic Transit Logistics") — the drawer is opened
+// from every role's dashboard, several of which (Admin, Class) now use this
+// navy theme, so its own accent color needs to match rather than staying on
+// the old app-wide blue.
+const NAVY = "#1a2b48";
+const NAVY_LIGHT = "#e8ebf2";
 
 interface MenuItem {
     id: string;
@@ -145,9 +152,9 @@ export default function AppDrawer({
                                         width: 48,
                                         height: 48,
                                         borderRadius: 24,
-                                        backgroundColor: Colors.primaryLight,
+                                        backgroundColor: NAVY_LIGHT,
                                         borderWidth: 2,
-                                        borderColor: Colors.primaryBorder,
+                                        borderColor: NAVY,
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}
@@ -156,7 +163,7 @@ export default function AppDrawer({
                                         style={{
                                             fontSize: 18,
                                             fontWeight: "800",
-                                            color: Colors.primary,
+                                            color: NAVY,
                                         }}
                                     >
                                         {userName?.charAt(0).toUpperCase() ?? "U"}
@@ -238,7 +245,7 @@ export default function AppDrawer({
                                                 borderRadius: 12,
                                                 backgroundColor: isDanger
                                                     ? Colors.dangerLight
-                                                    : Colors.primaryLight,
+                                                    : NAVY_LIGHT,
                                                 alignItems: "center",
                                                 justifyContent: "center",
                                             }}
@@ -249,7 +256,7 @@ export default function AppDrawer({
                                                 color={
                                                     isDanger
                                                         ? Colors.danger
-                                                        : Colors.primary
+                                                        : NAVY
                                                 }
                                             />
                                         </View>

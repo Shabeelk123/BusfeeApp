@@ -8,9 +8,20 @@ import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { Colors, Shadows } from "@/constants/colors";
 import { getCurrentClassAccount } from "@/services/account.service";
 import { getCurrentMonthDefaulters } from "@/services/defaulters.service";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background:  "#f7fafc",
+    onSurface:   "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline:     "#e2e8f0",
+    success:     "#2d7a4d",
+    successLight:"#e3f3e9",
+    danger:      "#e53e3e",
+    dangerLight: "#fdeaea",
+} as const;
 
 // ── Stat Pill ─────────────────────────────────────────────────────────────────
 function StatPill({
@@ -40,7 +51,7 @@ function StatPill({
             }}
         >
             <Ionicons name={icon} size={16} color={iconColor} />
-            <Text style={{ marginTop: 4, fontSize: 11, color: Colors.textMuted, fontWeight: "500" }}>
+            <Text style={{ marginTop: 4, fontSize: 11, color: T.onSurfaceVariant, fontWeight: "500" }}>
                 {label}
             </Text>
             <Text style={{ marginTop: 2, fontSize: 14, fontWeight: "800", color: valueColor }}>
@@ -59,17 +70,14 @@ function DefaulterCard({ item }: { item: any }) {
 
     return (
         <View
-            style={[
-                {
-                    backgroundColor: Colors.card,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: Colors.dangerBorder,
-                    padding: 16,
-                    marginBottom: 12,
-                },
-                Shadows.card,
-            ]}
+            style={{
+                backgroundColor: "#ffffff",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: T.outline,
+                padding: 16,
+                marginBottom: 12,
+            }}
         >
             <View
                 style={{
@@ -80,25 +88,25 @@ function DefaulterCard({ item }: { item: any }) {
                 }}
             >
                 <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
+                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: "700", color: T.onSurface }}>
                         {student?.name}
                     </Text>
-                    <Text style={{ marginTop: 2, fontSize: 13, color: Colors.textSecondary }}>
+                    <Text style={{ marginTop: 2, fontSize: 13, color: T.onSurfaceVariant }}>
                         #{student?.admission_no}
                     </Text>
                 </View>
 
                 <View
                     style={{
-                        backgroundColor: Colors.dangerLight,
+                        backgroundColor: T.dangerLight,
                         borderRadius: 999,
                         paddingHorizontal: 12,
                         paddingVertical: 4,
                         borderWidth: 1,
-                        borderColor: Colors.dangerBorder,
+                        borderColor: T.danger,
                     }}
                 >
-                    <Text style={{ fontSize: 11, fontWeight: "800", color: Colors.danger, letterSpacing: 0.5 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: T.danger, letterSpacing: 0.5 }}>
                         DUE
                     </Text>
                 </View>
@@ -109,25 +117,25 @@ function DefaulterCard({ item }: { item: any }) {
                     icon="cash-outline"
                     label="Monthly Fee"
                     value={`₹${item.fee ?? 0}`}
-                    iconColor={Colors.textSecondary}
-                    bgColor={Colors.cardBorderLight}
-                    valueColor={Colors.textPrimary}
+                    iconColor={T.onSurfaceVariant}
+                    bgColor={T.outline}
+                    valueColor={T.onSurface}
                 />
                 <StatPill
                     icon="checkmark-circle-outline"
                     label="Paid"
                     value={`₹${item.paid_amount ?? 0}`}
-                    iconColor={Colors.success}
-                    bgColor={Colors.successLight}
-                    valueColor={Colors.success}
+                    iconColor={T.success}
+                    bgColor={T.successLight}
+                    valueColor={T.success}
                 />
                 <StatPill
                     icon="alert-circle-outline"
                     label="Pending"
                     value={`₹${pending}`}
-                    iconColor={Colors.danger}
-                    bgColor={Colors.dangerLight}
-                    valueColor={Colors.danger}
+                    iconColor={T.danger}
+                    bgColor={T.dangerLight}
+                    valueColor={T.danger}
                 />
             </View>
         </View>
@@ -191,7 +199,7 @@ export default function ClassDefaultersScreen() {
     }
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <FlatList
                 data={rows}
                 keyExtractor={(item) => item.id}
@@ -202,7 +210,6 @@ export default function ClassDefaultersScreen() {
                         <PageHeader
                             title="Defaulters"
                             subtitle={classLabel ? `Class ${classLabel} — current month` : "Current month pending students"}
-                            showBack
                         />
 
                         {rows.length > 0 && (
@@ -210,16 +217,16 @@ export default function ClassDefaultersScreen() {
                                 style={{
                                     flexDirection: "row",
                                     alignItems: "center",
-                                    backgroundColor: Colors.dangerLight,
+                                    backgroundColor: T.dangerLight,
                                     borderRadius: 12,
                                     borderWidth: 1,
-                                    borderColor: Colors.dangerBorder,
+                                    borderColor: T.danger,
                                     padding: 14,
                                     marginBottom: 16,
                                 }}
                             >
-                                <Ionicons name="warning-outline" size={20} color={Colors.danger} style={{ marginRight: 10 }} />
-                                <Text style={{ flex: 1, fontSize: 13, color: Colors.danger, lineHeight: 18, fontWeight: "500" }}>
+                                <Ionicons name="warning-outline" size={20} color={T.danger} style={{ marginRight: 10 }} />
+                                <Text style={{ flex: 1, fontSize: 13, color: T.danger, lineHeight: 18, fontWeight: "500" }}>
                                     {rows.length} student{rows.length !== 1 ? "s" : ""} have outstanding fee dues. Please follow up.
                                 </Text>
                             </View>
@@ -231,8 +238,8 @@ export default function ClassDefaultersScreen() {
                         title="No Defaulters"
                         subtitle="All students in your class have cleared their current month dues."
                         icon="checkmark-circle-outline"
-                        iconColor={Colors.success}
-                        iconBgColor={Colors.successLight}
+                        iconColor={T.success}
+                        iconBgColor={T.successLight}
                     />
                 }
                 renderItem={({ item }) => <DefaulterCard item={item} />}

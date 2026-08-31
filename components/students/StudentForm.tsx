@@ -2,12 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
-import { Colors, Shadows } from "../../constants/colors";
 import { getDivisionOptions, getGradeOptions } from "../../services/class.service";
 import AppButton from "../common/AppButton";
 import AppInput from "../common/AppInput";
 import AppSelect, { DropdownOption } from "../common/AppSelect";
 import { useToast } from "../common/ToastContext";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    navy:        "#1a2b48",
+    navyLight:   "#e8ebf2",
+    outline:     "#e2e8f0",
+} as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,69 +47,15 @@ interface FormErrors {
     monthlyFee?: string;
 }
 
-// ─── Section Card ─────────────────────────────────────────────────────────────
-
-function SectionCard({
-    title,
-    icon,
-    children,
-}: {
-    title: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    children: React.ReactNode;
-}) {
-    return (
-        <View style={{ marginBottom: 20 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-                <View
-                    style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        backgroundColor: Colors.primaryLight,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginRight: 8,
-                    }}
-                >
-                    <Ionicons name={icon} size={15} color={Colors.primary} />
-                </View>
-                <Text
-                    style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: Colors.textSecondary,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                    }}
-                >
-                    {title}
-                </Text>
-            </View>
-
-            <View
-                style={[
-                    {
-                        backgroundColor: Colors.card,
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: Colors.cardBorderLight,
-                    },
-                    Shadows.card,
-                ]}
-            >
-                {children}
-            </View>
-        </View>
-    );
-}
-
 // ─── Shared Student Form ────────────────────────────────────────────────────────
 // Used by both app/(admin)/students/create.tsx and edit.tsx — real V2 fields
 // only (students table: admission_no, name, grade_id, division_id, monthly_fee).
 // Login credentials are never entered here — student.service.ts::createStudent
 // generates them automatically from name + admission number.
+//
+// One flat card, no section headings — the field labels already say what
+// each one is, and short fields (admission no / fee, grade / division) sit
+// two-to-a-row so the whole form fits on one screen without scrolling.
 
 export default function StudentForm({ mode, initialValues, submitLabel, onSubmit, onSuccess }: Props) {
     const toast = useToast();
@@ -192,8 +144,18 @@ export default function StudentForm({ mode, initialValues, submitLabel, onSubmit
     }, [validate, onSubmit, onSuccess, name, admissionNo, gradeId, divisionId, monthlyFee, toast]);
 
     return (
-        <>
-            <SectionCard title="Student Information" icon="person-outline">
+        <View style={{ width: "100%", maxWidth: 520, alignSelf: "center" }}>
+            <View
+                style={{
+                    backgroundColor: "#ffffff",
+                    borderRadius: 16,
+                    padding: 16,
+                    paddingBottom: 4,
+                    borderWidth: 1,
+                    borderColor: T.outline,
+                    marginBottom: 14,
+                }}
+            >
                 <AppInput
                     label="Name"
                     required
@@ -205,80 +167,78 @@ export default function StudentForm({ mode, initialValues, submitLabel, onSubmit
                     error={errors.name}
                     editable={!submitting}
                 />
-                <AppInput
-                    label="Admission Number"
-                    required
-                    iconName="id-card-outline"
-                    value={admissionNo}
-                    onChangeText={setAdmissionNo}
-                    placeholder="e.g. ADM-2026-001"
-                    autoCapitalize="characters"
-                    error={errors.admissionNo}
-                    editable={!submitting}
-                />
-            </SectionCard>
 
-            <SectionCard title="School Details" icon="school-outline">
-                <AppSelect
-                    label="Grade"
-                    required
-                    iconName="school-outline"
-                    value={gradeId}
-                    options={gradeOptions}
-                    placeholder="Select grade"
-                    searchable={false}
-                    error={errors.gradeId}
-                    disabled={submitting}
-                    onChange={(v) => { setGradeId(String(v)); setDivisionId(""); }}
-                />
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <AppInput
+                            label="Admission No."
+                            required
+                            iconName="id-card-outline"
+                            value={admissionNo}
+                            onChangeText={setAdmissionNo}
+                            placeholder="ADM-2026-001"
+                            autoCapitalize="characters"
+                            error={errors.admissionNo}
+                            editable={!submitting}
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <AppInput
+                            label="Monthly Fee (₹)"
+                            required
+                            iconName="cash-outline"
+                            value={monthlyFee}
+                            onChangeText={setMonthlyFee}
+                            placeholder="e.g. 1200"
+                            keyboardType="decimal-pad"
+                            error={errors.monthlyFee}
+                            editable={!submitting}
+                        />
+                    </View>
+                </View>
 
-                <AppSelect
-                    label="Division"
-                    required
-                    iconName="grid-outline"
-                    value={divisionId}
-                    options={divisionOptions}
-                    placeholder={gradeId ? "Select division" : "Select a grade first"}
-                    searchable
-                    error={errors.divisionId}
-                    disabled={submitting || !gradeId}
-                    onChange={(v) => setDivisionId(String(v))}
-                />
-
-                <AppInput
-                    label="Monthly Fee (₹)"
-                    required
-                    iconName="cash-outline"
-                    value={monthlyFee}
-                    onChangeText={setMonthlyFee}
-                    placeholder="e.g. 1200"
-                    keyboardType="decimal-pad"
-                    error={errors.monthlyFee}
-                    editable={!submitting}
-                />
-            </SectionCard>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                        <AppSelect
+                            label="Grade"
+                            required
+                            iconName="school-outline"
+                            value={gradeId}
+                            options={gradeOptions}
+                            placeholder="Select"
+                            searchable={false}
+                            error={errors.gradeId}
+                            disabled={submitting}
+                            onChange={(v) => { setGradeId(String(v)); setDivisionId(""); }}
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <AppSelect
+                            label="Division"
+                            required
+                            iconName="grid-outline"
+                            value={divisionId}
+                            options={divisionOptions}
+                            placeholder={gradeId ? "Select" : "Grade first"}
+                            searchable
+                            error={errors.divisionId}
+                            disabled={submitting || !gradeId}
+                            onChange={(v) => setDivisionId(String(v))}
+                        />
+                    </View>
+                </View>
+            </View>
 
             {mode === "create" && (
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        borderRadius: 12,
-                        backgroundColor: Colors.primaryLight,
-                        borderWidth: 1,
-                        borderColor: Colors.primaryBorder,
-                        padding: 14,
-                        marginBottom: 20,
-                    }}
-                >
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14, paddingHorizontal: 2 }}>
                     <Ionicons
                         name="information-circle-outline"
-                        size={18}
-                        color={Colors.primary}
-                        style={{ marginRight: 10, marginTop: 1 }}
+                        size={14}
+                        color={T.navy}
+                        style={{ marginRight: 6 }}
                     />
-                    <Text style={{ flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 18 }}>
-                        A login is generated automatically from the student&apos;s name and admission number. It will be shown after the profile is created.
+                    <Text style={{ flex: 1, fontSize: 11.5, color: T.navy, lineHeight: 15 }}>
+                        Login is generated automatically and shown after creation.
                     </Text>
                 </View>
             )}
@@ -289,8 +249,9 @@ export default function StudentForm({ mode, initialValues, submitLabel, onSubmit
                 loading={submitting}
                 disabled={submitting}
                 fullWidth
+                variant="navy"
                 iconLeft={mode === "create" ? "person-add-outline" : "checkmark-outline"}
             />
-        </>
+        </View>
     );
 }

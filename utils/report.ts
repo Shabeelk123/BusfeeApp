@@ -64,3 +64,60 @@ export const getTopPendingClasses = (rows: ReportStudentRow[], limit = 5): TopPe
 
     return [...byClass.values()].sort((a, b) => b.pending - a.pending).slice(0, limit);
 };
+
+export interface ClassGroup {
+    key: string;
+    label: string;
+    gradeName: string;
+    divisionName: string;
+    students: ReportStudentRow[];
+    paidCount: number;
+    pendingCount: number;
+    totalPending: number;
+    totalCollected: number;
+}
+
+/**
+ * Group report rows by class (grade-division), each with its full roster and
+ * paid/pending/collected aggregates. Shared by the Admin Students screen
+ * (expandable class table) and the Admin Dashboard's Class Overview section.
+ */
+export const groupByClass = (rows: ReportStudentRow[]): ClassGroup[] => {
+    const map = new Map<string, ClassGroup>();
+
+    for (const row of rows) {
+        const gradeName = row.grade?.name ?? "-";
+        const divisionName = row.division?.name ?? "-";
+        const key = `${gradeName}-${divisionName}`;
+
+        const group = map.get(key) ?? {
+            key,
+            label: `${gradeName}${divisionName}`,
+            gradeName,
+            divisionName,
+            students: [],
+            paidCount: 0,
+            pendingCount: 0,
+            totalPending: 0,
+            totalCollected: 0,
+        };
+
+        const paid = row.paid_amount ?? 0;
+        const fee = row.fee ?? 0;
+        const pending = row.status === "Excluded" ? 0 : Math.max(0, fee - paid);
+
+        group.students.push(row);
+        group.totalCollected += paid;
+        if (row.status === "Paid" || row.status === "Excluded") group.paidCount += 1;
+        else group.pendingCount += 1;
+        group.totalPending += pending;
+
+        map.set(key, group);
+    }
+
+    return [...map.values()].sort((a, b) => {
+        const gradeDiff = (Number(a.gradeName) || 0) - (Number(b.gradeName) || 0);
+        if (gradeDiff !== 0) return gradeDiff;
+        return a.divisionName.localeCompare(b.divisionName);
+    });
+};

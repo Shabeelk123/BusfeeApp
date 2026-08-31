@@ -12,7 +12,6 @@ import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import StudentFeeRow from "@/components/students/StudentFeeRow";
-import { Colors, Shadows } from "@/constants/colors";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 import { supabase } from "@/lib/supabase";
 import { getCurrentClassAccount } from "@/services/account.service";
@@ -20,6 +19,20 @@ import { getReportData, ReportStudentRow } from "@/services/report.service";
 import { clearUser } from "@/store/authSlice";
 import { formatAcademicMonth, getDefaultAcademicMonth } from "@/utils/academicYear";
 import { generateReportSummary } from "@/utils/report";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background:  "#f7fafc",
+    navy:        "#1a2b48",
+    navyLight:   "#e8ebf2",
+    onSurface:   "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline:     "#e2e8f0",
+    success:     "#2d7a4d",
+    successLight:"#e3f3e9",
+    danger:      "#e53e3e",
+    dangerLight: "#fdeaea",
+} as const;
 
 type StatusFilter = "all" | "pending" | "paid";
 
@@ -38,14 +51,14 @@ function StatTile({
     icon: keyof typeof Ionicons.glyphMap;
 }) {
     return (
-        <View style={[{ flex: 1, borderRadius: 16, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorderLight, padding: 14 }, Shadows.card]}>
+        <View style={{ flex: 1, borderRadius: 16, backgroundColor: "#ffffff", borderWidth: 1, borderColor: T.outline, padding: 14 }}>
             <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: iconBg, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
                 <Ionicons name={icon} size={16} color={iconColor} />
             </View>
-            <Text style={{ fontSize: 18, fontWeight: "800", color: Colors.textPrimary }} numberOfLines={1}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: T.onSurface }} numberOfLines={1}>
                 {value}
             </Text>
-            <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 2 }}>{label}</Text>
+            <Text style={{ fontSize: 11, color: T.onSurfaceVariant, marginTop: 2 }}>{label}</Text>
         </View>
     );
 }
@@ -83,15 +96,15 @@ function StatusTabs({
                             alignItems: "center",
                             borderRadius: 12,
                             paddingVertical: 10,
-                            backgroundColor: isActive ? Colors.primary : Colors.card,
+                            backgroundColor: isActive ? T.navy : "#ffffff",
                             borderWidth: 1,
-                            borderColor: isActive ? Colors.primary : Colors.cardBorderLight,
+                            borderColor: isActive ? T.navy : T.outline,
                             opacity: pressed ? 0.8 : 1,
                         })}
                         accessibilityRole="button"
                         accessibilityLabel={`${tab.label} (${tab.count})`}
                     >
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: isActive ? Colors.textOnDark : Colors.textPrimary }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: isActive ? "#ffffff" : T.onSurface }}>
                             {tab.label} ({tab.count})
                         </Text>
                     </Pressable>
@@ -183,7 +196,7 @@ export default function ClassDashboard() {
     }
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <FlatList
                 data={filteredRows}
                 keyExtractor={(item) => item.id}
@@ -209,8 +222,8 @@ export default function ClassDashboard() {
                         title="No Students Yet"
                         subtitle="No students assigned to your class yet."
                         icon="school-outline"
-                        iconColor={Colors.primary}
-                        iconBgColor={Colors.primaryLight}
+                        iconColor={T.navy}
+                        iconBgColor={T.navyLight}
                     />
                 }
                 ListHeaderComponent={
@@ -223,48 +236,26 @@ export default function ClassDashboard() {
                                     width: 42,
                                     height: 42,
                                     borderRadius: 13,
-                                    backgroundColor: Colors.card,
-                                    borderWidth: 1,
-                                    borderColor: Colors.cardBorderLight,
+                                    backgroundColor: T.navy,
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    opacity: pressed ? 0.7 : 1,
+                                    opacity: pressed ? 0.85 : 1,
                                     marginRight: 12,
-                                    ...Shadows.card,
                                 })}
                                 accessibilityRole="button"
                                 accessibilityLabel="Open menu"
                             >
-                                <Ionicons name="menu-outline" size={22} color={Colors.textPrimary} />
+                                <Ionicons name="menu-outline" size={22} color="#ffffff" />
                             </Pressable>
 
                             <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 12, fontWeight: "700", color: Colors.textSecondary, textTransform: "uppercase", letterSpacing: 1 }}>
+                                <Text style={{ fontSize: 12, fontWeight: "700", color: T.onSurfaceVariant, textTransform: "uppercase", letterSpacing: 1 }}>
                                     Class Portal
                                 </Text>
-                                <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 20, fontWeight: "800", color: Colors.textPrimary }}>
+                                <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 20, fontWeight: "800", color: T.onSurface }}>
                                     {classLabel ? `Class ${classLabel}` : (user?.name ?? "Class Account")}
                                 </Text>
                             </View>
-
-                            <Pressable
-                                onPress={() => router.push("/(class)/defaulters")}
-                                style={({ pressed }) => ({
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    borderRadius: 12,
-                                    backgroundColor: Colors.dangerLight,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 10,
-                                    opacity: pressed ? 0.75 : 1,
-                                })}
-                                accessibilityRole="button"
-                                accessibilityLabel="View defaulters"
-                            >
-                                <Ionicons name="alert-circle-outline" size={16} color={Colors.danger} />
-                                <Text style={{ fontSize: 12, fontWeight: "700", color: Colors.danger }}>Defaulters</Text>
-                            </Pressable>
                         </View>
 
                         {/* ── Summary Cards ── */}
@@ -273,22 +264,22 @@ export default function ClassDashboard() {
                                 label="Students"
                                 value={String(summary.totalStudents)}
                                 icon="people-outline"
-                                iconColor={Colors.primary}
-                                iconBg={Colors.primaryLight}
+                                iconColor={T.navy}
+                                iconBg={T.navyLight}
                             />
                             <StatTile
                                 label="Collected"
                                 value={`₹${summary.totalCollection}`}
                                 icon="checkmark-circle-outline"
-                                iconColor={Colors.success}
-                                iconBg={Colors.successLight}
+                                iconColor={T.success}
+                                iconBg={T.successLight}
                             />
                             <StatTile
                                 label="Pending"
                                 value={`₹${summary.totalPending}`}
                                 icon="alert-circle-outline"
-                                iconColor={Colors.danger}
-                                iconBg={Colors.dangerLight}
+                                iconColor={T.danger}
+                                iconBg={T.dangerLight}
                             />
                         </View>
 
@@ -310,7 +301,7 @@ export default function ClassDashboard() {
                             paidCount={paidRows.length}
                         />
 
-                        <Text style={{ fontSize: 13, fontWeight: "800", color: Colors.textPrimary, marginBottom: 10 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "800", color: T.onSurface, marginBottom: 10 }}>
                             Students — {formatAcademicMonth(selectedMonth)}
                         </Text>
                     </>

@@ -1,11 +1,13 @@
 import {
     Redirect,
-    Slot,
+    Stack,
 } from "expo-router";
 import { useAppSelector } from "../../hooks/redux";
 
 // Reads from Redux (already populated by useSessionRestore at app start).
-// Consistent with TeacherLayout — no extra Supabase call on every mount.
+// Consistent with ClassLayout/TeacherLayout. Uses <Stack> (not <Slot>) so
+// the (tabs) group's screens push properly over full-screen routes like
+// students/create, reports/class-wise, grades/*, etc., hiding the tab bar.
 export default function AdminLayout() {
     const role = useAppSelector((state) => state.auth.role);
 
@@ -13,5 +15,5 @@ export default function AdminLayout() {
         return <Redirect href="/(auth)/role-select" />;
     }
 
-    return <Slot />;
+    return <Stack screenOptions={{ headerShown: false }} />;
 }

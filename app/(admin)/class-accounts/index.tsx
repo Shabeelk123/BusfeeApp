@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, TextInput, View } from "react-native";
 
 import AccountCard from "@/components/accounts/AccountCard";
 import ResetPasswordDialog from "@/components/accounts/ResetPasswordDialog";
@@ -11,7 +11,6 @@ import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { Colors } from "@/constants/colors";
 import { useAccountActions } from "@/hooks/useAccountActions";
 import {
     getClassAccountLoginId,
@@ -20,6 +19,17 @@ import {
     setClassAccountStatus,
 } from "@/services/account.service";
 import { ClassAccount } from "@/types/grade";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background: "#f7fafc",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    muted: "#8a8d93",
+    outline: "#e2e8f0",
+} as const;
 
 type Row = ClassAccount & {
     grade: { id: string; name: string };
@@ -98,7 +108,7 @@ export default function ClassAccountsScreen() {
     }
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <PageHeader
                 title="Class Accounts"
                 subtitle={`${accounts.length} registered`}
@@ -110,26 +120,26 @@ export default function ClassAccountsScreen() {
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: Colors.card,
+                    backgroundColor: "#ffffff",
                     borderRadius: 12,
-                    borderWidth: 1.5,
-                    borderColor: Colors.inputBorder,
+                    borderWidth: 1,
+                    borderColor: T.outline,
                     paddingHorizontal: 14,
                     minHeight: 48,
                     marginBottom: 16,
                 }}
             >
-                <Ionicons name="search" size={18} color={Colors.iconDefault} style={{ marginRight: 10 }} />
+                <Ionicons name="search" size={18} color={T.muted} style={{ marginRight: 10 }} />
                 <TextInput
                     value={search}
                     onChangeText={setSearch}
                     placeholder="Search by grade, division or login ID..."
-                    placeholderTextColor={Colors.textMuted}
-                    style={{ flex: 1, fontSize: 15, color: Colors.textPrimary, paddingVertical: 10 }}
+                    placeholderTextColor={T.muted}
+                    style={{ flex: 1, fontSize: 15, color: T.onSurface, paddingVertical: 10 }}
                 />
                 {search.length > 0 && (
                     <Pressable onPress={() => setSearch("")} hitSlop={8} accessibilityLabel="Clear search">
-                        <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+                        <Ionicons name="close-circle" size={18} color={T.muted} />
                     </Pressable>
                 )}
             </View>
@@ -158,8 +168,8 @@ export default function ClassAccountsScreen() {
                                 : "Create a grade to generate class accounts."
                         }
                         icon="people-outline"
-                        iconColor={Colors.primary}
-                        iconBgColor={Colors.primaryLight}
+                        iconColor={T.navy}
+                        iconBgColor={T.navyLight}
                     />
                 }
             />

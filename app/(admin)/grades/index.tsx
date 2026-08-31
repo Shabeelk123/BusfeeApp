@@ -12,9 +12,20 @@ import LoadingState from "@/components/common/LoadingState";
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import { useToast } from "@/components/common/ToastContext";
-import { Colors, Shadows } from "@/constants/colors";
 import { deleteGrade, getGradesWithDivisions } from "@/services/grade.service";
 import { Division, Grade } from "@/types/grade";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background: "#f7fafc",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+    danger: "#e53e3e",
+    dangerLight: "#fdeaea",
+} as const;
 
 type GradeWithDivisions = Grade & { divisions: Division[] };
 
@@ -28,39 +39,36 @@ function GradeCard({
 }) {
     return (
         <View
-            style={[
-                {
-                    backgroundColor: Colors.card,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: Colors.cardBorderLight,
-                    padding: 16,
-                    marginBottom: 12,
-                },
-                Shadows.card,
-            ]}
+            style={{
+                backgroundColor: "#ffffff",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: T.outline,
+                padding: 14,
+                marginBottom: 10,
+            }}
         >
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
                 <View
                     style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        backgroundColor: Colors.primaryLight,
+                        width: 40,
+                        height: 40,
+                        borderRadius: 11,
+                        backgroundColor: T.navyLight,
                         alignItems: "center",
                         justifyContent: "center",
                         marginRight: 12,
                     }}
                 >
-                    <Text style={{ fontSize: 16, fontWeight: "800", color: Colors.primary }}>
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: T.navy }}>
                         {item.name}
                     </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: T.onSurface }}>
                         Grade {item.name}
                     </Text>
-                    <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>
+                    <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 1 }}>
                         {item.divisions.length} division{item.divisions.length === 1 ? "" : "s"}
                     </Text>
                 </View>
@@ -70,33 +78,31 @@ function GradeCard({
                     accessibilityRole="button"
                     accessibilityLabel={`Delete Grade ${item.name}`}
                     style={({ pressed }) => ({
-                        width: 36,
-                        height: 36,
+                        width: 34,
+                        height: 34,
                         borderRadius: 10,
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: Colors.dangerLight,
+                        backgroundColor: T.dangerLight,
                         opacity: pressed ? 0.7 : 1,
                     })}
                 >
-                    <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                    <Ionicons name="trash-outline" size={16} color={T.danger} />
                 </Pressable>
             </View>
 
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                 {item.divisions.map((d) => (
                     <View
                         key={d.id}
                         style={{
-                            backgroundColor: Colors.primaryLight,
+                            backgroundColor: T.navyLight,
                             borderRadius: 999,
                             paddingHorizontal: 10,
                             paddingVertical: 4,
-                            borderWidth: 1,
-                            borderColor: Colors.primaryBorder,
                         }}
                     >
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: Colors.primary }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: T.navy }}>
                             {item.name}-{d.name}
                         </Text>
                     </View>
@@ -167,17 +173,17 @@ export default function GradesScreen() {
     }
 
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <PageHeader
-                title="Grades"
-                subtitle={`${grades.length} grade${grades.length === 1 ? "" : "s"} registered`}
+                title="Manage Grades"
+                subtitle={`${grades.length} grade${grades.length === 1 ? "" : "s"}`}
                 showBack
                 action={
                     <AppButton
                         label="+ Add"
                         onPress={() => router.push("/(admin)/grades/create")}
                         size="sm"
-                        variant="primary"
+                        variant="navy"
                     />
                 }
             />
@@ -195,8 +201,8 @@ export default function GradesScreen() {
                         title="No Grades Yet"
                         subtitle='Tap "+ Add" to create the first grade and its class accounts.'
                         icon="school-outline"
-                        iconColor={Colors.primary}
-                        iconBgColor={Colors.primaryLight}
+                        iconColor={T.navy}
+                        iconBgColor={T.navyLight}
                         actionLabel="Add Grade"
                         onAction={() => router.push("/(admin)/grades/create")}
                     />

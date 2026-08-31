@@ -10,6 +10,12 @@ import Animated, {
 
 import PasswordField from "./PasswordField";
 
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+} as const;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -140,13 +146,13 @@ export default function ResetPasswordDialog({
                                 width: 64,
                                 height: 64,
                                 borderRadius: 20,
-                                backgroundColor: "#DBEAFE",
+                                backgroundColor: T.navyLight,
                                 alignItems: "center",
                                 justifyContent: "center",
                                 marginBottom: 20,
                             }}
                         >
-                            <Ionicons name="key-outline" size={32} color="#2563EB" />
+                            <Ionicons name="key-outline" size={32} color={T.navy} />
                         </View>
 
                         {/* Title */}
@@ -226,7 +232,7 @@ export default function ResetPasswordDialog({
                                     flex: 1,
                                     height: 48,
                                     borderRadius: 14,
-                                    backgroundColor: "#2563EB",
+                                    backgroundColor: T.navy,
                                     alignItems: "center",
                                     justifyContent: "center",
                                     opacity: pressed || busy ? 0.8 : 1,

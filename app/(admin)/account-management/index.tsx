@@ -4,7 +4,18 @@ import { Pressable, Text, View } from "react-native";
 
 import PageHeader from "@/components/common/PageHeader";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { Colors, Shadows } from "@/constants/colors";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches the Admin Dashboard) ─
+const T = {
+    background: "#f7fafc",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    accentDeep: "#7c5800",
+    accentLight: "#fdf3e0",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+} as const;
 
 // ── Nav Tile ──────────────────────────────────────────────────────────────────
 function AccountTypeTile({
@@ -27,43 +38,40 @@ function AccountTypeTile({
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={title}
-            style={({ pressed }) => [
-                {
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: Colors.card,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: Colors.cardBorderLight,
-                    padding: 18,
-                    marginBottom: 14,
-                    opacity: pressed ? 0.85 : 1,
-                },
-                Shadows.card,
-            ]}
+            style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#ffffff",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: T.outline,
+                padding: 16,
+                marginBottom: 12,
+                opacity: pressed ? 0.85 : 1,
+            })}
         >
             <View
                 style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 14,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 13,
                     backgroundColor: iconBg,
                     alignItems: "center",
                     justifyContent: "center",
                     marginRight: 14,
                 }}
             >
-                <Ionicons name={icon} size={24} color={iconColor} />
+                <Ionicons name={icon} size={22} color={iconColor} />
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.textPrimary }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: T.onSurface }}>
                     {title}
                 </Text>
-                <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>
+                <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginTop: 2 }}>
                     {subtitle}
                 </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.iconDefault} />
+            <Ionicons name="chevron-forward" size={18} color={T.onSurfaceVariant} />
         </Pressable>
     );
 }
@@ -71,28 +79,28 @@ function AccountTypeTile({
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function AccountManagementScreen() {
     return (
-        <ScreenWrapper>
+        <ScreenWrapper backgroundColor={T.background}>
             <PageHeader
                 title="Account Management"
-                subtitle="Class and coordinator login accounts"
+                subtitle="Class & coordinator logins"
                 showBack
             />
 
             <AccountTypeTile
                 icon="people-outline"
-                iconColor={Colors.primary}
-                iconBg={Colors.primaryLight}
+                iconColor={T.navy}
+                iconBg={T.navyLight}
                 title="Class Accounts"
-                subtitle="One login per division — reset passwords, enable or disable access"
+                subtitle="Reset passwords, turn access on or off"
                 onPress={() => router.push("/(admin)/class-accounts")}
             />
 
             <AccountTypeTile
                 icon="analytics-outline"
-                iconColor={Colors.info}
-                iconBg={Colors.infoLight}
+                iconColor={T.accentDeep}
+                iconBg={T.accentLight}
                 title="Coordinator Accounts"
-                subtitle="One coordinator per grade — create, reset, enable/disable or delete"
+                subtitle="Add, reset or remove grade coordinators"
                 onPress={() => router.push("/(admin)/coordinator-accounts")}
             />
         </ScreenWrapper>
