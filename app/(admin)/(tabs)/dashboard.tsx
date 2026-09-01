@@ -104,13 +104,6 @@ function ordinal(n: number): string {
   }
 }
 
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 // ─── Stat Card ──────────────────────────────────────────────────────────────
 function StatCard({
   label,
@@ -709,7 +702,7 @@ export default function DashboardScreen() {
               textTransform: "uppercase",
             }}
           >
-            {getGreeting()}
+            Dashboard
           </Text>
           <Text
             numberOfLines={1}

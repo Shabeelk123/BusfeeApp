@@ -19,8 +19,9 @@ import { generateDetailedReport } from "@/utils/generateDetailedReport";
 import { generateReportSummary } from "@/utils/report";
 
 // ── Screen ───────────────────────────────────────────────────────────────────
-// Thin, grade-scoped adaptation of app/(admin)/reports/index.tsx — same
-// SummaryCard/ReportCard, same services, just `gradeId` added to the query.
+// Thin, grade-scoped adaptation of app/(admin)/(tabs)/reports.tsx — same
+// SummaryCard/ReportCard, same services, just `gradeId` added to the query
+// so every number here reflects only this coordinator's own grade.
 export default function CoordinatorReportsHub() {
     const { gradeId, gradeName, loading: gradeLoading, error: gradeError, load: loadGrade } = useCoordinatorGrade();
 
@@ -100,10 +101,10 @@ export default function CoordinatorReportsHub() {
     return (
         <ScreenWrapper>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* Header — no back chevron, this is a primary tab now */}
                 <PageHeader
                     title="Reports"
                     subtitle={gradeName ? `Grade ${gradeName} fee collection reports` : "Fee collection reports & summaries"}
-                    showBack
                 />
 
                 {/* ── Academic Month ── */}

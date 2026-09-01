@@ -5,18 +5,14 @@ import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 
 import AcademicMonthSelect from "@/components/common/AcademicMonthSelect";
-import AppDrawer from "@/components/common/AppDrawer";
-import ConfirmDialog from "@/components/common/ConfirmDialog";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import LoadingState from "@/components/common/LoadingState";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
 import StudentFeeRow from "@/components/students/StudentFeeRow";
-import { useAppDispatch, useAppSelector } from "@/hooks/redux";
-import { supabase } from "@/lib/supabase";
+import { useAppSelector } from "@/hooks/redux";
 import { getCurrentClassAccount } from "@/services/account.service";
 import { getReportData, ReportStudentRow } from "@/services/report.service";
-import { clearUser } from "@/store/authSlice";
 import { formatAcademicMonth, getDefaultAcademicMonth } from "@/utils/academicYear";
 import { generateReportSummary } from "@/utils/report";
 
@@ -116,7 +112,6 @@ function StatusTabs({
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function ClassDashboard() {
-    const dispatch = useAppDispatch();
     const user = useAppSelector((state) => state.auth.user);
 
     const [selectedMonth, setSelectedMonth] = useState(() => getDefaultAcademicMonth());
@@ -126,8 +121,6 @@ export default function ClassDashboard() {
     const [rows, setRows] = useState<ReportStudentRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const [showDrawer, setShowDrawer] = useState(false);
-    const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -175,12 +168,6 @@ export default function ClassDashboard() {
         return rows;
     }, [statusFilter, rows, pendingRows, paidRows]);
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        dispatch(clearUser());
-        router.replace("/(auth)/role-select");
-    };
-
     if (loading) {
         return <LoadingState title="Loading Class" subtitle="Fetching your class fee status..." />;
     }
@@ -215,6 +202,12 @@ export default function ClassDashboard() {
                                 params: { id: item.id },
                             })
                         }
+                        onPay={(studentId) =>
+                            router.push({
+                                pathname: "/(class)/students/add-payment",
+                                params: { studentId, month: selectedMonth.month, year: selectedMonth.year },
+                            })
+                        }
                     />
                 )}
                 ListEmptyComponent={
@@ -230,24 +223,6 @@ export default function ClassDashboard() {
                     <>
                         {/* ── Header ── */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                            <Pressable
-                                onPress={() => setShowDrawer(true)}
-                                style={({ pressed }) => ({
-                                    width: 42,
-                                    height: 42,
-                                    borderRadius: 13,
-                                    backgroundColor: T.navy,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    opacity: pressed ? 0.85 : 1,
-                                    marginRight: 12,
-                                })}
-                                accessibilityRole="button"
-                                accessibilityLabel="Open menu"
-                            >
-                                <Ionicons name="menu-outline" size={22} color="#ffffff" />
-                            </Pressable>
-
                             <View style={{ flex: 1 }}>
                                 <Text style={{ fontSize: 12, fontWeight: "700", color: T.onSurfaceVariant, textTransform: "uppercase", letterSpacing: 1 }}>
                                     Class Portal
@@ -306,50 +281,6 @@ export default function ClassDashboard() {
                         </Text>
                     </>
                 }
-            />
-
-            {/* ── App Drawer ── */}
-            <AppDrawer
-                visible={showDrawer}
-                onClose={() => setShowDrawer(false)}
-                userName={user?.name}
-                userRole="Class Account"
-                items={[
-                    {
-                        id: "about",
-                        icon: "information-circle-outline",
-                        label: "About",
-                        sublabel: "App info & version",
-                        onPress: () => router.push("/about"),
-                    },
-                    {
-                        id: "privacy",
-                        icon: "shield-checkmark-outline",
-                        label: "Privacy Policy",
-                        sublabel: "busfeeapp.netlify.app",
-                        onPress: () => router.push("/privacy-policy"),
-                    },
-                    {
-                        id: "signout",
-                        icon: "log-out-outline",
-                        label: "Sign Out",
-                        sublabel: "Return to login screen",
-                        onPress: () => setShowLogoutDialog(true),
-                        variant: "danger",
-                    },
-                ]}
-            />
-
-            {/* ── Sign Out Confirm ── */}
-            <ConfirmDialog
-                visible={showLogoutDialog}
-                variant="warning"
-                title="Sign Out?"
-                subtitle="You'll be returned to the login screen."
-                confirmLabel="Sign Out"
-                cancelLabel="Stay"
-                onConfirm={handleLogout}
-                onCancel={() => setShowLogoutDialog(false)}
             />
         </ScreenWrapper>
     );

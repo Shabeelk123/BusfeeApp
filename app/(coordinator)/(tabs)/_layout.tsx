@@ -9,12 +9,14 @@ const T = {
     outline: "#e2e8f0",
 } as const;
 
-// Class's primary sections as a bottom tab bar — Dashboard, Students, Menu.
-// Nested inside app/(class)/_layout.tsx's <Stack>, so pushing to
-// a detail screen (students/[id], students/add-payment — both siblings of
-// this (tabs) group, not children of it) hides the tab bar automatically,
-// exactly like a normal stack push.
-export default function ClassTabsLayout() {
+// Coordinator's primary sections as a bottom tab bar — Dashboard, Students,
+// Reports, Menu. Nested inside app/(coordinator)/_layout.tsx's <Stack>, so
+// pushing to a detail screen (students/[id], reports/class-wise,
+// reports/defaulters, defaulters — all siblings of this (tabs) group, not
+// children of it) hides the tab bar automatically, exactly like a normal
+// stack push. Mirrors app/(admin)/(tabs)/_layout.tsx and
+// app/(class)/(tabs)/_layout.tsx.
+export default function CoordinatorTabsLayout() {
     return (
         <Tabs
             screenOptions={{
@@ -47,6 +49,15 @@ export default function ClassTabsLayout() {
                     title: "Students",
                     tabBarIcon: ({ color, focused, size }) => (
                         <Ionicons name={focused ? "people" : "people-outline"} size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="reports"
+                options={{
+                    title: "Reports",
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <Ionicons name={focused ? "document-text" : "document-text-outline"} size={size} color={color} />
                     ),
                 }}
             />

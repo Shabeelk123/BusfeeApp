@@ -2,7 +2,6 @@ import AppButton from "@/components/common/AppButton";
 import AppDrawer from "@/components/common/AppDrawer";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import ScreenWrapper from "@/components/common/ScreenWrapper";
-import { Colors } from "@/constants/colors";
 import { logoutUser } from "@/services/auth.service";
 import {
     LedgerMonth,
@@ -21,6 +20,23 @@ import {
     Text,
     View,
 } from "react-native";
+
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches every other dashboard) ─
+const T = {
+    background: "#f7fafc",
+    surface: "#ffffff",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+    success: "#2d7a4d",
+    successLight: "#e3f3e9",
+    warning: "#b7791f",
+    warningLight: "#fdf3e0",
+    danger: "#e53e3e",
+    dangerLight: "#fdeaea",
+} as const;
 
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -41,15 +57,13 @@ function MiniStat({
       style={{
         flex: 1,
         borderRadius: 12,
-        backgroundColor: Colors.card,
+        backgroundColor: T.surface,
+        borderWidth: 1,
+        borderColor: T.outline,
         padding: 16,
-        shadowColor: "#000",
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 1,
       }}
     >
-      <Text style={{ fontSize: 12, color: Colors.textMuted, marginBottom: 4 }}>
+      <Text style={{ fontSize: 12, color: T.onSurfaceVariant, marginBottom: 4 }}>
         {label}
       </Text>
       <Text style={{ fontSize: 16, fontWeight: "700", color: valueColor }}>
@@ -101,13 +115,13 @@ export default function StudentDashboard() {
 
   if (loading) {
     return (
-      <ScreenWrapper>
+      <ScreenWrapper backgroundColor={T.background}>
         <View
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={T.navy} />
           <Text
-            style={{ marginTop: 12, color: Colors.textSecondary, fontSize: 14 }}
+            style={{ marginTop: 12, color: T.onSurfaceVariant, fontSize: 14 }}
           >
             Loading your account…
           </Text>
@@ -118,7 +132,7 @@ export default function StudentDashboard() {
 
   if (!student) {
     return (
-      <ScreenWrapper>
+      <ScreenWrapper backgroundColor={T.background}>
         <View style={{ paddingHorizontal: 32, alignItems: "center" }}>
           <View
             style={{
@@ -128,13 +142,13 @@ export default function StudentDashboard() {
               alignItems: "center",
               justifyContent: "center",
               borderRadius: 40,
-              backgroundColor: Colors.cardBorderLight,
+              backgroundColor: T.navyLight,
             }}
           >
             <Ionicons
               name="lock-closed"
               size={40}
-              color={Colors.textSecondary}
+              color={T.navy}
             />
           </View>
           <Text
@@ -143,7 +157,7 @@ export default function StudentDashboard() {
               textAlign: "center",
               fontSize: 18,
               fontWeight: "700",
-              color: Colors.textPrimary,
+              color: T.onSurface,
             }}
           >
             Profile Not Found
@@ -153,7 +167,7 @@ export default function StudentDashboard() {
               marginTop: 8,
               textAlign: "center",
               fontSize: 14,
-              color: Colors.textSecondary,
+              color: T.onSurfaceVariant,
             }}
           >
             Please contact your school administrator to set up your account.
@@ -180,7 +194,7 @@ export default function StudentDashboard() {
   const isCleared = outstanding === 0;
 
   return (
-    <ScreenWrapper>
+    <ScreenWrapper backgroundColor={T.background}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* ── Header ── */}
         <View
@@ -197,23 +211,17 @@ export default function StudentDashboard() {
               width: 42,
               height: 42,
               borderRadius: 13,
-              backgroundColor: Colors.card,
-              borderWidth: 1,
-              borderColor: Colors.cardBorderLight,
+              backgroundColor: T.navy,
               alignItems: "center",
               justifyContent: "center",
-              opacity: pressed ? 0.7 : 1,
+              opacity: pressed ? 0.85 : 1,
               marginRight: 12,
               marginTop: 2,
-              shadowColor: "#000",
-              shadowOpacity: 0.05,
-              shadowRadius: 8,
-              elevation: 2,
             })}
             accessibilityRole="button"
             accessibilityLabel="Open menu"
           >
-            <Ionicons name="menu-outline" size={22} color={Colors.textPrimary} />
+            <Ionicons name="menu-outline" size={22} color="#ffffff" />
           </Pressable>
 
           <View style={{ flex: 1 }}>
@@ -221,7 +229,7 @@ export default function StudentDashboard() {
               style={{
                 fontSize: 12,
                 fontWeight: "700",
-                color: Colors.textSecondary,
+                color: T.onSurfaceVariant,
                 textTransform: "uppercase",
                 letterSpacing: 1,
               }}
@@ -233,7 +241,7 @@ export default function StudentDashboard() {
                 marginTop: 4,
                 fontSize: 22,
                 fontWeight: "800",
-                color: Colors.textPrimary,
+                color: T.onSurface,
               }}
               numberOfLines={1}
             >
@@ -246,8 +254,8 @@ export default function StudentDashboard() {
                   alignItems: "center",
                   borderRadius: 8,
                   borderWidth: 1,
-                  borderColor: Colors.cardBorder,
-                  backgroundColor: Colors.card,
+                  borderColor: T.outline,
+                  backgroundColor: T.surface,
                   paddingHorizontal: 12,
                   paddingVertical: 4,
                 }}
@@ -255,14 +263,14 @@ export default function StudentDashboard() {
                 <Ionicons
                   name="book-outline"
                   size={12}
-                  color={Colors.textSecondary}
+                  color={T.onSurfaceVariant}
                   style={{ marginRight: 4 }}
                 />
                 <Text
                   style={{
                     fontSize: 12,
                     fontWeight: "500",
-                    color: Colors.textSecondary,
+                    color: T.onSurfaceVariant,
                   }}
                 >
                   {student.grade?.name && student.division?.name
@@ -276,8 +284,8 @@ export default function StudentDashboard() {
                   alignItems: "center",
                   borderRadius: 8,
                   borderWidth: 1,
-                  borderColor: Colors.cardBorder,
-                  backgroundColor: Colors.card,
+                  borderColor: T.outline,
+                  backgroundColor: T.surface,
                   paddingHorizontal: 12,
                   paddingVertical: 4,
                 }}
@@ -285,14 +293,14 @@ export default function StudentDashboard() {
                 <Ionicons
                   name="id-card-outline"
                   size={12}
-                  color={Colors.textSecondary}
+                  color={T.onSurfaceVariant}
                   style={{ marginRight: 4 }}
                 />
                 <Text
                   style={{
                     fontSize: 12,
                     fontWeight: "500",
-                    color: Colors.textSecondary,
+                    color: T.onSurfaceVariant,
                   }}
                 >
                   #{student.admission_no}
@@ -309,18 +317,14 @@ export default function StudentDashboard() {
             overflow: "hidden",
             borderRadius: 16,
             padding: 24,
-            backgroundColor: isCleared ? Colors.success : Colors.danger,
-            shadowColor: isCleared ? Colors.success : Colors.danger,
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            elevation: 6,
+            backgroundColor: isCleared ? T.navy : T.danger,
           }}
         >
           <Text
             style={{
               fontSize: 11,
               fontWeight: "700",
-              color: Colors.textOnDark,
+              color: "#ffffff",
               opacity: 0.8,
               textTransform: "uppercase",
               letterSpacing: 1,
@@ -333,7 +337,7 @@ export default function StudentDashboard() {
               marginTop: 8,
               fontSize: 36,
               fontWeight: "900",
-              color: Colors.textOnDark,
+              color: "#ffffff",
             }}
           >
             {outstanding > 0 ? `₹${outstanding}` : "All Clear"}
@@ -342,7 +346,7 @@ export default function StudentDashboard() {
             style={{
               marginTop: 4,
               fontSize: 13,
-              color: Colors.textOnDark,
+              color: "#ffffff",
               opacity: 0.85,
             }}
           >
@@ -364,14 +368,14 @@ export default function StudentDashboard() {
               <Ionicons
                 name="checkmark-circle-outline"
                 size={12}
-                color={Colors.textOnDark}
+                color="#ffffff"
                 style={{ marginRight: 4 }}
               />
               <Text
                 style={{
                   fontSize: 11,
                   fontWeight: "700",
-                  color: Colors.textOnDark,
+                  color: "#ffffff",
                 }}
               >
                 {paidCount} Paid
@@ -391,14 +395,14 @@ export default function StudentDashboard() {
                 <Ionicons
                   name="time-outline"
                   size={12}
-                  color={Colors.textOnDark}
+                  color="#ffffff"
                   style={{ marginRight: 4 }}
                 />
                 <Text
                   style={{
                     fontSize: 11,
                     fontWeight: "700",
-                    color: Colors.textOnDark,
+                    color: "#ffffff",
                   }}
                 >
                   {pendingCount} Pending
@@ -413,17 +417,17 @@ export default function StudentDashboard() {
           <MiniStat
             label="Monthly Fee"
             value={`₹${monthlyFee}`}
-            valueColor={Colors.primary}
+            valueColor={T.navy}
           />
           <MiniStat
             label="Total Paid"
             value={`₹${totalPaid}`}
-            valueColor={Colors.success}
+            valueColor={T.success}
           />
           <MiniStat
             label="Months"
             value={String(ledger.length)}
-            valueColor={Colors.textPrimary}
+            valueColor={T.onSurface}
           />
         </View>
 
@@ -434,8 +438,8 @@ export default function StudentDashboard() {
             flexDirection: "row",
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: Colors.cardBorder,
-            backgroundColor: Colors.card,
+            borderColor: T.outline,
+            backgroundColor: T.surface,
             padding: 4,
           }}
         >
@@ -451,7 +455,7 @@ export default function StudentDashboard() {
                 borderRadius: 8,
                 paddingVertical: 10,
                 backgroundColor:
-                  activeTab === tab ? Colors.primary : "transparent",
+                  activeTab === tab ? T.navy : "transparent",
                 opacity: pressed ? 0.8 : 1,
               })}
             >
@@ -460,7 +464,7 @@ export default function StudentDashboard() {
                   tab === "monthly" ? "calendar-outline" : "receipt-outline"
                 }
                 size={14}
-                color={activeTab === tab ? Colors.textOnDark : Colors.textMuted}
+                color={activeTab === tab ? "#ffffff" : T.onSurfaceVariant}
                 style={{ marginRight: 5 }}
               />
               <Text
@@ -468,7 +472,7 @@ export default function StudentDashboard() {
                   fontSize: 13,
                   fontWeight: "600",
                   color:
-                    activeTab === tab ? Colors.textOnDark : Colors.textMuted,
+                    activeTab === tab ? "#ffffff" : T.onSurfaceVariant,
                 }}
               >
                 {tab === "monthly" ? "Monthly" : "History"}
@@ -490,19 +494,19 @@ export default function StudentDashboard() {
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: 32,
-                    backgroundColor: Colors.cardBorderLight,
+                    backgroundColor: T.navyLight,
                   }}
                 >
                   <Ionicons
                     name="calendar-outline"
                     size={32}
-                    color={Colors.textMuted}
+                    color={T.navy}
                   />
                 </View>
                 <Text
                   style={{
                     marginTop: 8,
-                    color: Colors.textMuted,
+                    color: T.onSurfaceVariant,
                     fontSize: 14,
                   }}
                 >
@@ -514,20 +518,20 @@ export default function StudentDashboard() {
                 const isPaid = entry.status === "Paid";
                 const isPartial = entry.status === "Partial";
                 const bgColor = isPaid
-                  ? Colors.successLight
+                  ? T.successLight
                   : isPartial
-                    ? Colors.warningLight
-                    : Colors.dangerLight;
+                    ? T.warningLight
+                    : T.dangerLight;
                 const borderColor = isPaid
-                  ? Colors.successBorder
+                  ? T.success
                   : isPartial
-                    ? Colors.warningBorder
-                    : Colors.dangerBorder;
+                    ? T.warning
+                    : T.danger;
                 const iconColor = isPaid
-                  ? Colors.success
+                  ? T.success
                   : isPartial
-                    ? Colors.warning
-                    : Colors.danger;
+                    ? T.warning
+                    : T.danger;
 
                 return (
                   <View
@@ -558,7 +562,7 @@ export default function StudentDashboard() {
                     />
                     <View style={{ flex: 1 }}>
                       <Text
-                        style={{ fontWeight: "600", color: Colors.textPrimary }}
+                        style={{ fontWeight: "600", color: T.onSurface }}
                       >
                         {MONTH_NAMES[entry.month - 1]} {entry.year}
                       </Text>
@@ -566,7 +570,7 @@ export default function StudentDashboard() {
                         style={{
                           marginTop: 2,
                           fontSize: 12,
-                          color: Colors.textSecondary,
+                          color: T.onSurfaceVariant,
                         }}
                       >
                         Paid ₹{entry.paid_amount} of ₹{entry.fee}
@@ -584,7 +588,7 @@ export default function StudentDashboard() {
                         style={{
                           fontSize: 11,
                           fontWeight: "700",
-                          color: Colors.textOnDark,
+                          color: "#ffffff",
                         }}
                       >
                         {entry.status}
@@ -610,19 +614,19 @@ export default function StudentDashboard() {
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: 32,
-                    backgroundColor: Colors.cardBorderLight,
+                    backgroundColor: T.navyLight,
                   }}
                 >
                   <Ionicons
                     name="card-outline"
                     size={32}
-                    color={Colors.textMuted}
+                    color={T.navy}
                   />
                 </View>
                 <Text
                   style={{
                     marginTop: 8,
-                    color: Colors.textMuted,
+                    color: T.onSurfaceVariant,
                     fontSize: 14,
                   }}
                 >
@@ -637,13 +641,9 @@ export default function StudentDashboard() {
                     marginBottom: 12,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: Colors.cardBorder,
-                    backgroundColor: Colors.card,
+                    borderColor: T.outline,
+                    backgroundColor: T.surface,
                     padding: 16,
-                    shadowColor: "#000",
-                    shadowOpacity: 0.04,
-                    shadowRadius: 8,
-                    elevation: 1,
                   }}
                 >
                   <View
@@ -664,13 +664,13 @@ export default function StudentDashboard() {
                           alignItems: "center",
                           justifyContent: "center",
                           borderRadius: 20,
-                          backgroundColor: Colors.successLight,
+                          backgroundColor: T.successLight,
                         }}
                       >
                         <Ionicons
                           name="cash-outline"
                           size={20}
-                          color={Colors.success}
+                          color={T.success}
                         />
                       </View>
                       <View>
@@ -678,7 +678,7 @@ export default function StudentDashboard() {
                           style={{
                             fontSize: 16,
                             fontWeight: "700",
-                            color: Colors.success,
+                            color: T.success,
                           }}
                         >
                           ₹{item.amount}
@@ -687,14 +687,14 @@ export default function StudentDashboard() {
                           style={{
                             marginTop: 2,
                             fontSize: 11,
-                            color: Colors.textMuted,
+                            color: T.onSurfaceVariant,
                           }}
                         >
                           {MONTH_NAMES[item.month - 1]} {item.year}
                         </Text>
                       </View>
                     </View>
-                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>
+                    <Text style={{ fontSize: 11, color: T.onSurfaceVariant }}>
                       {item.payment_date}
                     </Text>
                   </View>
@@ -704,9 +704,9 @@ export default function StudentDashboard() {
                         marginTop: 12,
                         paddingTop: 12,
                         borderTopWidth: 1,
-                        borderTopColor: Colors.cardBorder,
+                        borderTopColor: T.outline,
                         fontSize: 12,
-                        color: Colors.textMuted,
+                        color: T.onSurfaceVariant,
                       }}
                     >
                       {item.remarks}

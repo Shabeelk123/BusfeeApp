@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
 import { Colors, Shadows } from "../../constants/colors";
@@ -13,17 +14,20 @@ const STATUS_TONE: Record<string, { color: string; bg: string }> = {
 interface Props {
     row: ReportStudentRow;
     onPress: () => void;
+    onPay?: (studentId: string) => void;
 }
 
 /**
  * One table-style row: Name/Admission No, Paid, Pending, Status — for a
  * student's fee status in a given (already-fetched) academic month. Shared
  * by the CLASS dashboard and the Admin Students list so both look and
- * behave the same way.
+ * behave the same way. `onPay` is optional — pass it to show a Pay button
+ * (matching the Admin Students list), matching Admin's row-level flow.
  */
-export default function StudentFeeRow({ row, onPress }: Props) {
+export default function StudentFeeRow({ row, onPress, onPay }: Props) {
     const pending = row.status === "Excluded" ? 0 : Math.max(0, (row.fee ?? 0) - (row.paid_amount ?? 0));
     const tone = STATUS_TONE[row.status] ?? STATUS_TONE.Pending;
+    const showPay = !!onPay && pending > 0 && row.status !== "Excluded";
 
     return (
         <Pressable
@@ -74,6 +78,30 @@ export default function StudentFeeRow({ row, onPress }: Props) {
             >
                 <Text style={{ fontSize: 10, fontWeight: "800", color: tone.color }}>{row.status}</Text>
             </View>
+            {showPay && (
+                <Pressable
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        onPay!(row.id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Collect payment from ${row.name}`}
+                    style={({ pressed }) => ({
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        marginLeft: 10,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        backgroundColor: "#1a2b48",
+                        opacity: pressed ? 0.8 : 1,
+                    })}
+                >
+                    <Ionicons name="cash-outline" size={14} color="#ffffff" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff" }}>Pay</Text>
+                </Pressable>
+            )}
         </Pressable>
     );
 }

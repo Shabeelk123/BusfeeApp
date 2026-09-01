@@ -97,11 +97,10 @@ export default function CoordinatorStudentsScreen() {
 
     return (
         <ScreenWrapper>
-            {/* Header */}
+            {/* Header — no back chevron, this is a primary tab now */}
             <PageHeader
                 title="Students"
                 subtitle={gradeName ? `Grade ${gradeName} · ${students.length} students` : `${students.length} students`}
-                showBack
             />
 
             {/* Class Filter */}

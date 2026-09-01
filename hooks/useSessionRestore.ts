@@ -21,7 +21,7 @@ const fetchProfile = async (authId: string) => {
 };
 
 /** Navigate to the correct dashboard based on role */
-const navigateByRole = (role: string) => {
+export const navigateByRole = (role: string) => {
     switch (role) {
         case "ADMIN":
             router.replace("/(admin)/dashboard");

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { forwardRef } from "react";
-import { Text, TextInput, TextInputProps, View } from "react-native";
+import { Pressable, Text, TextInput, TextInputProps, View } from "react-native";
 import { Colors } from "../../constants/colors";
 
 interface Props extends TextInputProps {
@@ -9,10 +9,13 @@ interface Props extends TextInputProps {
     iconName?: keyof typeof Ionicons.glyphMap;
     error?: string;
     hint?: string;
+    /** Optional icon rendered at the end of the input row (e.g. password show/hide). */
+    rightIcon?: keyof typeof Ionicons.glyphMap;
+    onRightIconPress?: () => void;
 }
 
 const AppInput = forwardRef<TextInput, Props>(function AppInput(
-    { label, required, iconName, error, hint, style, ...rest },
+    { label, required, iconName, error, hint, rightIcon, onRightIconPress, style, ...rest },
     ref
 ) {
     const hasError = !!error;
@@ -72,6 +75,20 @@ const AppInput = forwardRef<TextInput, Props>(function AppInput(
                     ]}
                     {...rest}
                 />
+                {rightIcon && (
+                    <Pressable
+                        onPress={onRightIconPress}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                    >
+                        <Ionicons
+                            name={rightIcon}
+                            size={18}
+                            color={hasError ? Colors.danger : Colors.iconDefault}
+                            style={{ marginLeft: 10 }}
+                        />
+                    </Pressable>
+                )}
             </View>
 
             {/* Error / hint */}

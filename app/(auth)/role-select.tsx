@@ -1,4 +1,4 @@
-import { Colors, Radius, Shadows } from "@/constants/colors";
+import { Radius } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef } from "react";
@@ -11,6 +11,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches every dashboard) ────
+const T = {
+    background: "#f7fafc",
+    surface: "#ffffff",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+} as const;
+
 type Role = "ADMIN" | "STUDENT" | "CLASS" | "COORDINATOR";
 
 interface RoleCard {
@@ -18,9 +29,6 @@ interface RoleCard {
     label: string;
     subtitle: string;
     icon: keyof typeof Ionicons.glyphMap;
-    color: string;
-    colorLight: string;
-    colorBorder: string;
 }
 
 const ROLES: RoleCard[] = [
@@ -29,36 +37,24 @@ const ROLES: RoleCard[] = [
         label: "Administrator",
         subtitle: "Manage school & reports",
         icon: "shield-checkmark",
-        color: "#2563EB",
-        colorLight: "#EFF6FF",
-        colorBorder: "#BFDBFE",
     },
     {
         role: "CLASS",
         label: "Class Account",
         subtitle: "Manage students & fee collections for your class",
         icon: "school-outline",
-        color: "#0891B2",
-        colorLight: "#E0F2FE",
-        colorBorder: "#BAE6FD",
     },
     {
         role: "COORDINATOR",
         label: "Coordinator",
         subtitle: "View fee status across your grade",
         icon: "analytics-outline",
-        color: "#7C3AED",
-        colorLight: "#EDE9FE",
-        colorBorder: "#DDD6FE",
     },
     {
         role: "STUDENT",
         label: "Student",
         subtitle: "View your fee status & payments",
         icon: "school",
-        color: "#D97706",
-        colorLight: "#FEF3C7",
-        colorBorder: "#FDE68A",
     },
 ];
 
@@ -70,16 +66,13 @@ function AnimatedRoleCard({
     onPress: () => void;
 }) {
     const scale = useRef(new Animated.Value(1)).current;
-    const elevation = useRef(new Animated.Value(3)).current;
 
     const handlePressIn = () => {
-        Animated.parallel([
-            Animated.spring(scale, {
-                toValue: 0.97,
-                useNativeDriver: true,
-                speed: 30,
-            }),
-        ]).start();
+        Animated.spring(scale, {
+            toValue: 0.97,
+            useNativeDriver: true,
+            speed: 30,
+        }).start();
     };
 
     const handlePressOut = () => {
@@ -96,49 +89,31 @@ function AnimatedRoleCard({
                 onPress={onPress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                style={[
-                    styles.card,
-                    {
-                        borderColor: card.colorBorder,
-                        backgroundColor: Colors.card,
-                    },
-                ]}
+                style={styles.card}
             >
                 {/* Icon badge */}
-                <View
-                    style={[
-                        styles.iconBadge,
-                        { backgroundColor: card.colorLight },
-                    ]}
-                >
+                <View style={styles.iconBadge}>
                     <Ionicons
                         name={card.icon}
                         size={32}
-                        color={card.color}
+                        color={T.navy}
                     />
                 </View>
 
                 {/* Text */}
                 <View style={styles.cardText}>
-                    <Text
-                        style={[styles.cardLabel, { color: Colors.textPrimary }]}
-                    >
+                    <Text style={styles.cardLabel}>
                         {card.label}
                     </Text>
                     <Text style={styles.cardSubtitle}>{card.subtitle}</Text>
                 </View>
 
                 {/* Arrow */}
-                <View
-                    style={[
-                        styles.arrowBadge,
-                        { backgroundColor: card.colorLight },
-                    ]}
-                >
+                <View style={styles.arrowBadge}>
                     <Ionicons
                         name="arrow-forward"
                         size={18}
-                        color={card.color}
+                        color={T.navy}
                     />
                 </View>
             </Pressable>
@@ -156,14 +131,14 @@ export default function RoleSelectScreen() {
 
     return (
         <SafeAreaView
-            style={{ flex: 1, backgroundColor: Colors.background }}
+            style={{ flex: 1, backgroundColor: T.background }}
         >
             <View style={styles.container}>
                 {/* ── Header ── */}
                 <View style={styles.header}>
                     {/* Logo */}
                     <View style={styles.logoBadge}>
-                        <Ionicons name="bus" size={40} color="#fff" />
+                        <Ionicons name="bus" size={40} color="#ffffff" />
                     </View>
 
                     <Text style={styles.appName}>BusFee Tracker</Text>
@@ -218,11 +193,11 @@ const styles = StyleSheet.create({
         width: 76,
         height: 76,
         borderRadius: 22,
-        backgroundColor: Colors.primary,
+        backgroundColor: T.navy,
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 14,
-        shadowColor: Colors.primary,
+        shadowColor: T.navy,
         shadowOpacity: 0.35,
         shadowRadius: 16,
         shadowOffset: { width: 0, height: 6 },
@@ -232,12 +207,12 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontWeight: "900",
         letterSpacing: -0.5,
-        color: Colors.textPrimary,
+        color: T.onSurface,
         marginBottom: 4,
     },
     appTagline: {
         fontSize: 13,
-        color: Colors.textSecondary,
+        color: T.onSurfaceVariant,
         marginBottom: 20,
     },
     dividerRow: {
@@ -249,11 +224,11 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: Colors.cardBorder,
+        backgroundColor: T.outline,
     },
     dividerText: {
         fontSize: 13,
-        color: Colors.textMuted,
+        color: T.onSurfaceVariant,
         fontWeight: "500",
     },
 
@@ -266,14 +241,21 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: 16,
         borderRadius: Radius.card,
-        borderWidth: 1.5,
+        borderWidth: 1,
+        borderColor: T.outline,
+        backgroundColor: T.surface,
         padding: 18,
-        ...Shadows.cardMd,
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
     },
     iconBadge: {
         width: 54,
         height: 54,
         borderRadius: 14,
+        backgroundColor: T.navyLight,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -283,17 +265,19 @@ const styles = StyleSheet.create({
     cardLabel: {
         fontSize: 16,
         fontWeight: "700",
+        color: T.onSurface,
         marginBottom: 3,
     },
     cardSubtitle: {
         fontSize: 12,
-        color: Colors.textSecondary,
+        color: T.onSurfaceVariant,
         lineHeight: 17,
     },
     arrowBadge: {
         width: 34,
         height: 34,
         borderRadius: 10,
+        backgroundColor: T.navyLight,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -302,7 +286,7 @@ const styles = StyleSheet.create({
     footer: {
         textAlign: "center",
         fontSize: 12,
-        color: Colors.textMuted,
+        color: T.onSurfaceVariant,
         lineHeight: 18,
     },
 });

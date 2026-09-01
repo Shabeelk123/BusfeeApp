@@ -1,7 +1,9 @@
 import AppButton from "@/components/common/AppButton";
 import AppInput from "@/components/common/AppInput";
-import { Colors, Radius, Shadows } from "@/constants/colors";
+import { useToast } from "@/components/common/ToastContext";
+import { Radius } from "@/constants/colors";
 import { useAppDispatch } from "@/hooks/redux";
+import { navigateByRole } from "@/hooks/useSessionRestore";
 import { supabase } from "@/lib/supabase";
 import { loginUser } from "@/services/auth.service";
 import { setUser } from "@/store/authSlice";
@@ -9,51 +11,41 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    Alert,
     Pressable,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// ─── Theme (Stitch: "Academic Transit Logistics" — matches every dashboard) ────
+const T = {
+    background: "#f7fafc",
+    surface: "#ffffff",
+    navy: "#1a2b48",
+    navyLight: "#e8ebf2",
+    onSurface: "#181c1e",
+    onSurfaceVariant: "#44474d",
+    outline: "#e2e8f0",
+    danger: "#e53e3e",
+} as const;
 
 type Role = "ADMIN" | "STUDENT" | "CLASS" | "COORDINATOR";
 
 const ROLE_META: Record<
     Role,
-    { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; colorLight: string }
+    { label: string; icon: keyof typeof Ionicons.glyphMap }
 > = {
-    ADMIN: {
-        label: "Administrator",
-        icon: "shield-checkmark",
-        color: Colors.primary,
-        colorLight: "#EFF6FF",
-    },
-    CLASS: {
-        label: "Class Account",
-        icon: "school-outline",
-        color: "#0891B2",
-        colorLight: "#E0F2FE",
-    },
-    COORDINATOR: {
-        label: "Coordinator",
-        icon: "analytics-outline",
-        color: "#7C3AED",
-        colorLight: "#EDE9FE",
-    },
-    STUDENT: {
-        label: "Student",
-        icon: "school",
-        color: "#D97706",
-        colorLight: "#FEF3C7",
-    },
+    ADMIN: { label: "Administrator", icon: "shield-checkmark" },
+    CLASS: { label: "Class Account", icon: "school-outline" },
+    COORDINATOR: { label: "Coordinator", icon: "analytics-outline" },
+    STUDENT: { label: "Student", icon: "school" },
 };
 
 export default function LoginScreen() {
     const dispatch = useAppDispatch();
+    const toast = useToast();
     const { role } = useLocalSearchParams<{ role?: Role }>();
 
     // Fall back gracefully if accessed directly without a role param
@@ -94,13 +86,13 @@ export default function LoginScreen() {
             );
 
             if (error) {
-                Alert.alert("Login Failed", error.message || "Invalid credentials");
+                toast.error("Login Failed", error.message || "Invalid credentials");
                 return;
             }
 
             const authUser = data.user;
             if (!authUser) {
-                Alert.alert("Error", "User not found");
+                toast.error("Error", "User not found");
                 return;
             }
 
@@ -113,9 +105,9 @@ export default function LoginScreen() {
             if (profileError || !profile) {
                 console.error("[Login] Profile fetch failed:", profileError);
                 const detail = profileError?.message ?? "No profile row found in users table";
-                Alert.alert(
+                toast.error(
                     "Profile Not Found",
-                    `Auth succeeded but no users row found.\n\nDetail: ${detail}\n\nAuth UID: ${authUser.id}`
+                    `Auth succeeded but no users row found. ${detail}`,
                 );
                 await supabase.auth.signOut();
                 return;
@@ -126,7 +118,7 @@ export default function LoginScreen() {
             if (profile.role !== selectedRole) {
                 // Sign out the Supabase session immediately — wrong portal.
                 await supabase.auth.signOut();
-                Alert.alert(
+                toast.error(
                     "Wrong Portal",
                     `These credentials belong to a ${profile.role.charAt(0) + profile.role.slice(1).toLowerCase()} account. Please go back and select the correct login portal.`,
                 );
@@ -134,20 +126,16 @@ export default function LoginScreen() {
             }
 
             dispatch(setUser({ user: profile, role: profile.role }));
-
-            if (profile.role === "ADMIN") router.replace("/(admin)/dashboard");
-            else if (profile.role === "CLASS") router.replace("/(class)/dashboard");
-            else if (profile.role === "COORDINATOR") router.replace("/(coordinator)/dashboard");
-            else if (profile.role === "STUDENT") router.replace("/(student)/dashboard");
+            navigateByRole(profile.role);
         } catch (err: any) {
-            Alert.alert("Error", err?.message || "Something went wrong. Please try again.");
+            toast.error("Error", err?.message || "Something went wrong. Please try again.");
         } finally {
             setLoading(false);
         }
-    }, [validateForm, email, password, dispatch, selectedRole]);
+    }, [validateForm, email, password, dispatch, selectedRole, toast]);
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: T.background }}>
             <KeyboardAwareScrollView
                 enableOnAndroid
                 extraScrollHeight={40}
@@ -163,42 +151,29 @@ export default function LoginScreen() {
                     <Ionicons
                         name="arrow-back"
                         size={20}
-                        color={Colors.textSecondary}
+                        color={T.onSurfaceVariant}
                     />
                     <Text style={styles.backText}>Change role</Text>
                 </Pressable>
 
                 {/* ── Logo + Role badge ── */}
                 <View style={styles.headerSection}>
-                    <View
-                        style={[
-                            styles.iconBadge,
-                            { backgroundColor: meta.colorLight },
-                        ]}
-                    >
+                    <View style={styles.iconBadge}>
                         <Ionicons
                             name={meta.icon}
                             size={44}
-                            color={meta.color}
+                            color={T.navy}
                         />
                     </View>
 
                     {/* Role pill */}
-                    <View
-                        style={[
-                            styles.rolePill,
-                            {
-                                backgroundColor: meta.colorLight,
-                                borderColor: meta.color + "40",
-                            },
-                        ]}
-                    >
+                    <View style={styles.rolePill}>
                         <Ionicons
                             name={meta.icon}
                             size={12}
-                            color={meta.color}
+                            color={T.navy}
                         />
-                        <Text style={[styles.rolePillText, { color: meta.color }]}>
+                        <Text style={styles.rolePillText}>
                             {meta.label} Login
                         </Text>
                     </View>
@@ -225,57 +200,18 @@ export default function LoginScreen() {
                     />
 
                     {/* Password */}
-                    <View style={{ marginBottom: 24 }}>
-                        <Text style={styles.fieldLabel}>
-                            Password
-                            <Text style={{ color: Colors.danger }}> *</Text>
-                        </Text>
-
-                        <View
-                            style={[
-                                styles.passwordRow,
-                                {
-                                    borderColor: errors.password
-                                        ? Colors.danger
-                                        : Colors.inputBorder,
-                                    backgroundColor: errors.password
-                                        ? "#FEE2E2"
-                                        : Colors.inputBg,
-                                },
-                            ]}
-                        >
-                            <Ionicons
-                                name="lock-closed-outline"
-                                size={18}
-                                color={
-                                    errors.password
-                                        ? Colors.danger
-                                        : Colors.iconDefault
-                                }
-                                style={{ marginRight: 10 }}
-                            />
-                            <TextInput
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry={!showPassword}
-                                placeholder="Enter your password"
-                                placeholderTextColor={Colors.textMuted}
-                                style={styles.passwordInput}
-                            />
-                            <AppButton
-                                label={showPassword ? "Hide" : "Show"}
-                                onPress={() => setShowPassword(!showPassword)}
-                                variant="ghost"
-                                size="sm"
-                                iconRight={
-                                    showPassword ? "eye-off-outline" : "eye-outline"
-                                }
-                            />
-                        </View>
-                        {errors.password && (
-                            <Text style={styles.fieldError}>{errors.password}</Text>
-                        )}
-                    </View>
+                    <AppInput
+                        label="Password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        iconName="lock-closed-outline"
+                        rightIcon={showPassword ? "eye-off-outline" : "eye-outline"}
+                        onRightIconPress={() => setShowPassword((v) => !v)}
+                        required
+                        error={errors.password}
+                    />
 
                     {/* Submit */}
                     <AppButton
@@ -283,6 +219,7 @@ export default function LoginScreen() {
                         onPress={handleLogin}
                         loading={loading}
                         disabled={loading}
+                        variant="navy"
                         fullWidth
                     />
                 </View>
@@ -318,7 +255,7 @@ const styles = StyleSheet.create({
     },
     backText: {
         fontSize: 14,
-        color: Colors.textSecondary,
+        color: T.onSurfaceVariant,
         fontWeight: "500",
     },
 
@@ -331,10 +268,15 @@ const styles = StyleSheet.create({
         width: 72,
         height: 72,
         borderRadius: Radius.hero,
+        backgroundColor: T.navyLight,
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 10,
-        ...Shadows.cardMd,
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
     },
     rolePill: {
         flexDirection: "row",
@@ -344,24 +286,27 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         borderRadius: 999,
         borderWidth: 1,
+        backgroundColor: T.navyLight,
+        borderColor: T.navy + "40",
         marginBottom: 10,
     },
     rolePillText: {
         fontSize: 12,
         fontWeight: "700",
         letterSpacing: 0.3,
+        color: T.navy,
     },
     heading: {
         fontSize: 26,
         fontWeight: "900",
         letterSpacing: -0.5,
-        color: Colors.textPrimary,
+        color: T.onSurface,
         marginBottom: 6,
         textAlign: "center",
     },
     subheading: {
         fontSize: 14,
-        color: Colors.textSecondary,
+        color: T.onSurfaceVariant,
         textAlign: "center",
         lineHeight: 22,
     },
@@ -370,47 +315,22 @@ const styles = StyleSheet.create({
     card: {
         borderRadius: Radius.card,
         borderWidth: 1,
-        borderColor: Colors.cardBorder,
-        backgroundColor: Colors.card,
+        borderColor: T.outline,
+        backgroundColor: T.surface,
         padding: 20,
         marginBottom: 16,
-        ...Shadows.card,
-    },
-
-    // Fields
-    fieldLabel: {
-        fontSize: 13,
-        fontWeight: "600",
-        color: Colors.textPrimary,
-        marginBottom: 6,
-        marginLeft: 2,
-    },
-    passwordRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderRadius: Radius.input,
-        borderWidth: 1.5,
-        paddingHorizontal: 14,
-        minHeight: 50,
-    },
-    passwordInput: {
-        flex: 1,
-        fontSize: 15,
-        color: Colors.textPrimary,
-        paddingVertical: 12,
-    },
-    fieldError: {
-        fontSize: 12,
-        color: Colors.danger,
-        marginTop: 4,
-        marginLeft: 2,
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
     },
 
     // Footer
     footer: {
         textAlign: "center",
         fontSize: 12,
-        color: Colors.textMuted,
+        color: T.onSurfaceVariant,
         lineHeight: 18,
     },
 });
